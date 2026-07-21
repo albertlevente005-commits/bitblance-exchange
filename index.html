@@ -372,6 +372,7 @@ const ARC = {
   chainIdHex: '0x' + (5042002).toString(16),
   name: 'Arc Testnet',
   rpc: 'https://rpc.testnet.arc.network',
+  rpcFallbacks: ['https://rpc.testnet.arc.network','https://rpc.quicknode.testnet.arc.network','https://rpc.drpc.testnet.arc.network','https://rpc.blockdaemon.testnet.arc.network'],
   ws: 'wss://rpc.testnet.arc.network',
   explorer: 'https://testnet.arcscan.app',
   faucet: 'https://faucet.circle.com',
@@ -431,11 +432,18 @@ function ico(tok,size=26){
 
 /* ============ Wallet / RPC ============ */
 async function rpc(method, params=[]){
-  const r = await fetch(ARC.rpc,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
-  const j = await r.json();
-  if(j.error) throw new Error(j.error.message);
-  return j.result;
+  let lastErr=null;
+  for(const url of ARC.rpcFallbacks){
+    try{
+      const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+      const j = await r.json();
+      if(j.error) throw new Error(j.error.message);
+      ARC.rpc = url;
+      return j.result;
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr || new Error('All Arc RPC endpoints unreachable');
 }
 function hexToNum(hex, dec){
   if(!hex||hex==='0x') return 0;
@@ -482,7 +490,12 @@ async function connect(){
     } else if(e && e.code===4001){
       toast('Connection rejected in MetaMask','err');
     } else {
-      toast('Connection failed: '+((e&&e.message)||'unknown'),'err');
+      const m=(e&&e.message)||'unknown';
+      if(/RPC/i.test(m)){
+        toast('Your wallet cannot reach its current network. In MetaMask switch to Ethereum Mainnet, then press Connect again.','err');
+      } else {
+        toast('Connection failed: '+m,'err');
+      }
     }
     render();
   }
@@ -496,7 +509,7 @@ async function ensureArc(){
         await window.ethereum.request({method:'wallet_addEthereumChain',params:[{
           chainId:ARC.chainIdHex, chainName:ARC.name,
           nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
-          rpcUrls:[ARC.rpc], blockExplorerUrls:[ARC.explorer]
+          rpcUrls:ARC.rpcFallbacks, blockExplorerUrls:[ARC.explorer]
         }]});
         toast('Arc Testnet added to wallet','ok');
       }catch(_){ toast('Could not add Arc network','err'); }
