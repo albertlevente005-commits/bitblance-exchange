@@ -464,6 +464,9 @@ async function connect(){
     window.open('https://metamask.io/download/','_blank');
     return;
   }
+  const cbtn=document.querySelector('#wallet-area .btn');
+  if(cbtn){cbtn.textContent='Check MetaMask...';cbtn.disabled=true;}
+  toast('Approve the request in the MetaMask popup (fox icon, top right)','info');
   try{
     const accs = await window.ethereum.request({method:'eth_requestAccounts'});
     state.account = accs[0];
@@ -473,7 +476,16 @@ async function connect(){
     refreshBalances();
     window.ethereum.on?.('accountsChanged',(a)=>{state.account=a[0]||null;state.balances={};render();if(a[0])refreshBalances()});
     window.ethereum.on?.('chainChanged',()=>refreshBalances());
-  }catch(e){ toast('Connection cancelled','err'); }
+  }catch(e){
+    if(e && (e.code===-32002 || /already pending/i.test(e.message||''))){
+      toast('A request is already waiting in MetaMask - click the fox icon and approve it','err');
+    } else if(e && e.code===4001){
+      toast('Connection rejected in MetaMask','err');
+    } else {
+      toast('Connection failed: '+((e&&e.message)||'unknown'),'err');
+    }
+    render();
+  }
 }
 async function ensureArc(){
   try{
