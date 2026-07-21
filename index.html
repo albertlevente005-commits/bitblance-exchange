@@ -379,6 +379,60 @@ const ARC = {
   cctpDomain: 26
 };
 
+/* ValtoDEX AMM router = deployed ValtoDEX AMM on Arc Testnet */
+const DEX = {
+  addr: '0xefa6efae5962fb59b90968f80b50841efdd0a806',
+  sel: {
+    poolCount: '0xf525cb68',
+    pools:     '0xac4afa38',
+    getQuote:  '0x9c8e3085',
+    swap:      '0xb33daea9',
+    createPool:'0xe3433615',
+    addLiquidity:'0x422f1043',
+    approve:   '0x095ea7b3',
+    allowance: '0xdd62ed3e'
+  }
+};
+const pad = (v) => {
+  let h = typeof v === 'string' ? v.replace(/^0x/,'') : BigInt(v).toString(16);
+  return h.padStart(64,'0').toLowerCase();
+};
+const units = (amountStr, dec) => {
+  const [i,f=''] = String(amountStr).split('.');
+  return BigInt((i||'0') + (f+'0'.repeat(dec)).slice(0,dec));
+};
+const fromUnits = (bi, dec) => Number(bi) / Math.pow(10,dec);
+async function dexCall(data){ return await rpc('eth_call',[{to:DEX.addr, data}, 'latest']); }
+async function findPool(tokA, tokB){
+  const cnt = parseInt(await dexCall(DEX.sel.poolCount) || '0x0', 16);
+  for(let i=0;i<cnt;i++){
+    const raw = (await dexCall(DEX.sel.pools + pad(i)) || '').replace(/^0x/,'');
+    const w = k => raw.slice(k*64,(k+1)*64);
+    if(!w(0)) continue;
+    const a = '0x'+w(0).slice(24), b = '0x'+w(1).slice(24);
+    const rA = BigInt('0x'+(w(2)||'0')), rB = BigInt('0x'+(w(3)||'0'));
+    const A = tokA.toLowerCase(), B = tokB.toLowerCase();
+    if((a===A&&b===B)||(a===B&&b===A)){
+      if(rA>0n && rB>0n) return {id:i, tokenA:a, tokenB:b, reserveA:rA, reserveB:rB};
+    }
+  }
+  return null;
+}
+async function waitReceipt(hash, btn, label){
+  for(let i=0;i<60;i++){
+    await new Promise(r=>setTimeout(r,1500));
+    try{
+      const rc = await rpc('eth_getTransactionReceipt',[hash]);
+      if(rc && rc.blockNumber){
+        if(rc.status && BigInt(rc.status)===0n) throw new Error('transaction reverted on-chain');
+        return rc;
+      }
+    }catch(e){ if(/reverted/.test(e.message)) throw e; }
+    if(btn) btn.textContent = label+' ('+((i+1)*1.5|0)+'s)';
+  }
+  throw new Error('timed out waiting for confirmation');
+}
+
 /* Real Arc Testnet token contracts (from Arc docs) */
 const TOKENS = [
   {sym:'USDC', name:'USD Coin',        addr:'0x3600000000000000000000000000000000000000', dec:6, color:'#2775CA', price:1.00,  native:true,  peg:'USD'},
@@ -394,7 +448,7 @@ const BRIDGE_CHAINS = [
 ];
 const ARC_CHAIN = {name:'Arc Testnet', short:'ARC', color:'#2E5BFF', domain:26, arc:true};
 const ALL_CHAINS = [ARC_CHAIN, ...BRIDGE_CHAINS];
-const FEE = 0.001; // 0.1% router fee
+const FEE = 0.003; // 0.3% AMM fee (matches ValtoDEX FEE_BPS)
 
 /* ============ State ============ */
 let state = {
@@ -548,6 +602,7 @@ const TABS = [
   {id:'ai',    label:'Blance AI'},
   {id:'profile',label:'Profile'},
   {id:'recurring',label:'Recurring'},
+  {id:'pools',label:'Pools'},
   {id:'faucet',label:'Faucet'},
   {id:'points',label:'Points', soon:true}
 ];
@@ -562,6 +617,7 @@ function render(){
   else if(state.tab==='ai') v.appendChild(viewAI());
   else if(state.tab==='profile') v.appendChild(viewProfile());
   else if(state.tab==='recurring') v.appendChild(viewRecurring());
+  else if(state.tab==='pools') v.appendChild(viewPools());
   else if(state.tab==='faucet') v.appendChild(viewFaucet());
   else if(state.tab==='points') v.appendChild(viewPoints());
   if(state.tab==='ai') scrollAI();
@@ -648,7 +704,7 @@ function viewTrade(){
 
   const info=el('div','card rail-card');
   info.innerHTML='<h3>Network</h3>';
-  [['Chain ID', ARC.chainIdDec],['Gas token','USDC'],['Finality','~0.48s · BFT'],['Router','Bitblance StableFX'],['Fee tier','0.10%']].forEach(([k,v])=>{
+  [['Chain ID', ARC.chainIdDec],['Gas token','USDC'],['Finality','~0.48s · BFT'],['Router','ValtoDEX AMM'],['Fee tier','0.30%']].forEach(([k,v])=>{
     info.appendChild(el('div','stat',`<span class="k">${k}</span><span class="v">${v}</span>`));
   });
   rail.appendChild(info);
@@ -743,9 +799,9 @@ function quoteRows(q){
   return `
     <div class="qrow"><span class="k">Rate</span><span class="v">1 ${state.fromTok.sym} = ${fmt(q.rate,4)} ${state.toTok.sym}</span></div>
     <div class="qrow"><span class="k">Price impact</span><span class="v good">${q.impact.toFixed(2)}%</span></div>
-    <div class="qrow"><span class="k">Router fee (0.10%)</span><span class="v">${fmtc(q.fee)}</span></div>
+    <div class="qrow"><span class="k">AMM fee (0.30%)</span><span class="v">${fmtc(q.fee)}</span></div>
     <div class="qrow"><span class="k">Min. received</span><span class="v">${fmt(q.minReceived,4)} ${state.toTok.sym}</span></div>
-    <div class="qrow"><span class="k">Route</span><span class="route-chip"><span class="dot" style="background:var(--aqua)"></span>Bitblance StableFX</span></div>`;
+    <div class="qrow"><span class="k">Route</span><span class="route-chip"><span class="dot" style="background:var(--aqua)"></span>ValtoDEX AMM</span></div>`;
 }
 function updateSwapLive(){
   const q=getQuote();
@@ -765,16 +821,64 @@ function updateSwapLive(){
 }
 async function doSwap(){
   const q=getQuote(); if(!q)return;
-  const btn=$('.act-btn'); btn.disabled=true; btn.textContent='Confirm in wallet…';
+  if(!state.account){ toast('Connect your wallet first','err'); return; }
+  const btn=$('.act-btn'); btn.disabled=true;
+  const from=state.fromTok, to=state.toTok;
   try{
-    // On testnet with live DEX contracts this would call the StableFX router.
-    // Demo build simulates confirmation + settlement.
-    await new Promise(r=>setTimeout(r,900));
+    btn.textContent='Finding liquidity pool…';
+    const pool = await findPool(from.addr, to.addr);
+    if(!pool){
+      toast('No liquidity pool for '+from.sym+'/'+to.sym+' on ValtoDEX yet. Add liquidity first.','err');
+      btn.disabled=false; render(); return;
+    }
+    const amountIn = units(state.fromAmt, from.dec);
+    if(amountIn<=0n){ btn.disabled=false; render(); return; }
+
+    // real on-chain quote from the AMM
+    btn.textContent='Reading on-chain price…';
+    const qRaw = await dexCall(DEX.sel.getQuote + pad(pool.id) + pad(from.addr) + pad(amountIn));
+    const outUnits = BigInt(qRaw || '0x0');
+    if(outUnits<=0n) throw new Error('pool returned zero output');
+    const minOut = outUnits * 995n / 1000n; // 0.5% slippage tolerance
+
+    // approve if needed
+    btn.textContent='Checking allowance…';
+    const allowRaw = await rpc('eth_call',[{to:from.addr, data: DEX.sel.allowance + pad(state.account) + pad(DEX.addr)},'latest']);
+    const allowance = BigInt(allowRaw || '0x0');
+    if(allowance < amountIn){
+      btn.textContent='Approve in MetaMask…';
+      toast('Step 1 of 2: approve '+from.sym+' spending in MetaMask','info');
+      const apTx = await window.ethereum.request({method:'eth_sendTransaction', params:[{
+        from: state.account, to: from.addr,
+        data: DEX.sel.approve + pad(DEX.addr) + pad(amountIn)
+      }]});
+      btn.textContent='Approving…';
+      await waitReceipt(apTx, btn, 'Approving…');
+      toast('Approved. Now confirm the swap.','ok');
+    }
+
+    // swap
+    btn.textContent='Confirm swap in MetaMask…';
+    toast('Step 2 of 2: confirm the swap in MetaMask','info');
+    const txHash = await window.ethereum.request({method:'eth_sendTransaction', params:[{
+      from: state.account, to: DEX.addr,
+      data: DEX.sel.swap + pad(pool.id) + pad(from.addr) + pad(amountIn) + pad(minOut)
+    }]});
     btn.textContent='Settling on Arc…';
-    await new Promise(r=>setTimeout(r,700));
-    toast(`Swapped ${fmt(state.fromAmt,2)} ${state.fromTok.sym} → ${fmt(q.out,2)} ${state.toTok.sym}`,'ok');
-    state.fromAmt=''; render();
-  }catch(e){ toast('Swap failed: '+e.message,'err'); btn.disabled=false; }
+    await waitReceipt(txHash, btn, 'Settling on Arc…');
+    toast('Swapped '+fmt(state.fromAmt,2)+' '+from.sym+' → '+fmt(fromUnits(outUnits,to.dec),4)+' '+to.sym,'ok');
+    toast('Tx: '+txHash.slice(0,10)+'… view on Arcscan','info');
+    state.fromAmt='';
+    await refreshBalances();
+    render();
+  }catch(e){
+    const m=(e&&e.message)||'unknown error';
+    if(e&&e.code===4001) toast('Transaction rejected in MetaMask','err');
+    else if(/slippage/i.test(m)) toast('Price moved too much - try a smaller amount','err');
+    else if(/empty pool|zero output/i.test(m)) toast('This pool has no liquidity yet','err');
+    else toast('Swap failed: '+m,'err');
+    btn.disabled=false; render();
+  }
 }
 
 function chainIco(c,size=30){
@@ -992,6 +1096,130 @@ function makeSelect(tokens,current,onPick){
   paint();
   wrap.onclick=()=>{const i=tokens.indexOf(cur);cur=tokens[(i+1)%tokens.length];onPick(cur);paint()};
   return wrap;
+}
+
+/* ---------- POOLS ---------- */
+const TOKEN_META = (()=>{ const m={}; TOKENS.forEach(t=>m[t.addr.toLowerCase()]={sym:t.sym,dec:t.dec}); m['0xf0c4a4ce82a5746abaad9425360ab04fbba432bf']={sym:'cirBTC',dec:8}; return m; })();
+function tokMeta(a){ return TOKEN_META[(a||'').toLowerCase()] || {sym:(a||'').slice(0,8)+'…',dec:18}; }
+
+function viewPools(){
+  const root=el('div');
+  root.appendChild(el('div','page-head',
+    `<div class="eyebrow">Liquidity</div><h1>Pools</h1>
+     <p>Live ValtoDEX pools on Arc Testnet. Create a pair and seed it with liquidity so swaps can execute.</p>`));
+  const grid=el('div','trade-grid');
+
+  const listCard=el('div','card');
+  listCard.innerHTML='<h3 style="margin:0 0 14px;font-size:15px">On-chain pools</h3>';
+  const box=el('div'); box.style.cssText='color:var(--txt-2);font-size:13px'; box.textContent='Loading pools from Arc…';
+  listCard.appendChild(box);
+  const rf=el('button','btn btn-ghost','Refresh'); rf.style.marginTop='12px';
+  rf.onclick=()=>{ box.textContent='Loading pools from Arc…'; loadPools(box); };
+  listCard.appendChild(rf);
+  grid.appendChild(listCard);
+
+  const mk=el('div','card card-hero');
+  mk.innerHTML='<h3 style="margin:0 0 16px;font-size:15px">Create pool & add liquidity</h3>';
+  let cfg={a:TOKENS[0], b:TOKENS[1]};
+  const pair=el('div'); pair.style.cssText='display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:12px';
+  const selA=makeSelect(TOKENS,cfg.a,t=>cfg.a=t);
+  const selB=makeSelect(TOKENS,cfg.b,t=>cfg.b=t);
+  const plus=el('div',null,'<span style="color:var(--txt-3);font-weight:700;font-size:18px">+</span>');
+  pair.appendChild(selA);pair.appendChild(plus);pair.appendChild(selB);
+  mk.appendChild(pair);
+  const fA=el('div','field'); fA.innerHTML='<div class="field-top"><span class="lbl">Amount of first token</span></div><div class="field-row"><input class="amt" id="lqA" placeholder="0.0" inputmode="decimal"/></div>';
+  const fB=el('div','field'); fB.style.marginTop='10px'; fB.innerHTML='<div class="field-top"><span class="lbl">Amount of second token</span></div><div class="field-row"><input class="amt" id="lqB" placeholder="0.0" inputmode="decimal"/></div>';
+  mk.appendChild(fA); mk.appendChild(fB);
+  mk.appendChild(el('div','info-strip',
+    `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5B7CFF" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+     The first deposit sets the price. For USDC/EURC use a market-like ratio, e.g. 10 USDC + 9.2 EURC. Up to 4 MetaMask confirmations will appear — approve each.`));
+  const go=el('button','act-btn','Create / top up pool');
+  go.onclick=()=>createAndSeed(cfg, go, box);
+  mk.appendChild(go);
+  grid.appendChild(mk);
+
+  root.appendChild(grid);
+  loadPools(box);
+  return root;
+}
+
+async function loadPools(box){
+  try{
+    const cnt=parseInt(await dexCall(DEX.sel.poolCount)||'0x0',16);
+    if(!cnt){ box.innerHTML='No pools yet — create the first one on the right.'; return; }
+    let html='';
+    for(let i=0;i<cnt;i++){
+      const raw=(await dexCall(DEX.sel.pools+pad(i))||'').replace(/^0x/,'');
+      const w=k=>raw.slice(k*64,(k+1)*64);
+      if(!w(0)) continue;
+      const a='0x'+w(0).slice(24), b='0x'+w(1).slice(24);
+      const rA=BigInt('0x'+(w(2)||'0')), rB=BigInt('0x'+(w(3)||'0'));
+      const ma=tokMeta(a), mb=tokMeta(b);
+      const empty=(rA===0n||rB===0n)?' <span class="tag">empty</span>':'';
+      html+=`<div class="stat"><span class="k">#${i} ${ma.sym}/${mb.sym}${empty}</span><span class="v">${fmt(fromUnits(rA,ma.dec),2)} / ${fmt(fromUnits(rB,mb.dec),2)}</span></div>`;
+    }
+    box.innerHTML=html||'No pools yet — create the first one on the right.';
+  }catch(e){ box.textContent='Could not load pools: '+((e&&e.message)||'error'); }
+}
+
+async function ensureAllowance(token, amount, btn, stepLabel){
+  const allowRaw=await rpc('eth_call',[{to:token.addr,data:DEX.sel.allowance+pad(state.account)+pad(DEX.addr)},'latest']);
+  if(BigInt(allowRaw||'0x0')>=amount) return;
+  toast(stepLabel+': approve '+token.sym+' in MetaMask','info');
+  btn.textContent='Approve '+token.sym+'…';
+  const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{from:state.account,to:token.addr,data:DEX.sel.approve+pad(DEX.addr)+pad(amount)}]});
+  await waitReceipt(tx,btn,'Approving '+token.sym+'…');
+}
+
+async function createAndSeed(cfg, btn, box){
+  if(!state.account){ toast('Connect your wallet first','err'); return; }
+  if(cfg.a.sym===cfg.b.sym){ toast('Choose two different tokens','err'); return; }
+  const vA=$('#lqA').value, vB=$('#lqB').value;
+  if(!parseFloat(vA)||!parseFloat(vB)){ toast('Enter both amounts','err'); return; }
+  btn.disabled=true;
+  try{
+    const amtA=units(vA,cfg.a.dec), amtB=units(vB,cfg.b.dec);
+    btn.textContent='Checking pools…';
+    let id=null;
+    const cnt=parseInt(await dexCall(DEX.sel.poolCount)||'0x0',16);
+    for(let i=0;i<cnt;i++){
+      const raw=(await dexCall(DEX.sel.pools+pad(i))||'').replace(/^0x/,'');
+      const w=k=>raw.slice(k*64,(k+1)*64);
+      if(!w(0)) continue;
+      const a='0x'+w(0).slice(24), b='0x'+w(1).slice(24);
+      const A=cfg.a.addr.toLowerCase(),B=cfg.b.addr.toLowerCase();
+      if((a===A&&b===B)||(a===B&&b===A)){ id=i; break; }
+    }
+    if(id===null){
+      toast('Step 1: confirm pool creation in MetaMask','info');
+      btn.textContent='Create pool in MetaMask…';
+      const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{from:state.account,to:DEX.addr,data:DEX.sel.createPool+pad(cfg.a.addr)+pad(cfg.b.addr)}]});
+      await waitReceipt(tx,btn,'Creating pool…');
+      const cnt2=parseInt(await dexCall(DEX.sel.poolCount)||'0x0',16);
+      id=cnt2-1;
+      toast('Pool #'+id+' created','ok');
+    }
+    const raw=(await dexCall(DEX.sel.pools+pad(id))||'').replace(/^0x/,'');
+    const pa='0x'+raw.slice(24,64);
+    const aIsFirst = pa===cfg.a.addr.toLowerCase();
+    const t1=aIsFirst?cfg.a:cfg.b, t2=aIsFirst?cfg.b:cfg.a;
+    const m1=aIsFirst?amtA:amtB, m2=aIsFirst?amtB:amtA;
+    await ensureAllowance(t1,m1,btn,'Next');
+    await ensureAllowance(t2,m2,btn,'Next');
+    toast('Final step: confirm addLiquidity in MetaMask','info');
+    btn.textContent='Confirm addLiquidity…';
+    const tx2=await window.ethereum.request({method:'eth_sendTransaction',params:[{from:state.account,to:DEX.addr,data:DEX.sel.addLiquidity+pad(id)+pad(m1)+pad(m2)}]});
+    await waitReceipt(tx2,btn,'Adding liquidity…');
+    toast('Liquidity added to pool #'+id+' — swaps are live!','ok');
+    btn.disabled=false; btn.textContent='Create / top up pool';
+    loadPools(box);
+    refreshBalances();
+  }catch(e){
+    const m=(e&&e.message)||'unknown';
+    if(e&&e.code===4001) toast('Rejected in MetaMask','err');
+    else toast('Failed: '+m,'err');
+    btn.disabled=false; btn.textContent='Create / top up pool';
+  }
 }
 
 /* ---------- FAUCET ---------- */

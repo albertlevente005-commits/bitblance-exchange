@@ -6,7 +6,8 @@ Native stablecoin DEX interface for the **Arc Testnet** — swap, bridge and aut
 
 ## Features
 
-- **Swap** — USDC / EURC / USYC with live quotes, 0.10% router fee, price impact and min-received display
+- **Swap** — real on-chain swaps via our deployed ValtoDEX AMM (0.30% fee), with live quotes, price impact and min-received display
+- **Pools** — create ValtoDEX pairs and add liquidity straight from the UI (approve + addLiquidity flows)
 - **Bridge** — Circle CCTP V2 flow between Arc and Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Avalanche Fuji, OP Sepolia, with selectable source and destination networks
 - **Recurring orders** — DCA-style scheduled swaps (daily / weekly / biweekly / monthly), stored locally
 - **Profile** — live on-chain balances read directly from Arc Testnet RPC
@@ -37,4 +38,4 @@ Works on any static host: GitHub Pages, Cloudflare Pages, Netlify, Vercel. Uploa
 
 ## Status & disclaimer
 
-Testnet demo. Wallet connection, network switching and balance reads are live on-chain; swap and bridge execution are simulated until the Bitblance router contracts are deployed. Test tokens only — nothing here has real value and nothing is financial advice.
+Testnet demo. Wallet connection, network switching, balance reads, swaps and liquidity management run live on-chain against our deployed ValtoDEX AMM (0xefa6efae5962fb59b90968f80b50841efdd0a806). Bridge execution is still simulated. Test tokens only — nothing here has real value and nothing is financial advice.
