@@ -987,7 +987,12 @@ function viewFaucet(){
   });
   const addBtn=el('button','act-btn','Add Arc Testnet to wallet');
   addBtn.style.background='var(--panel-2)'; addBtn.style.color='var(--aqua)'; addBtn.style.border='1px solid var(--line)';
-  addBtn.onclick=()=>{ if(!window.ethereum){toast('No wallet detected','err');return;} ensureArc(); };
+  addBtn.onclick=async()=>{
+    if(!window.ethereum){toast('No wallet detected - install MetaMask first','err');return;}
+    toast('Approve the network request in MetaMask (fox icon, top right)','info');
+    await ensureArc();
+    try{ const cid=await window.ethereum.request({method:'eth_chainId'}); if(cid===ARC.chainIdHex){ toast('Arc Testnet is active in your wallet','ok'); } }catch(e){}
+  };
   card.appendChild(addBtn);
   grid.appendChild(card);
 
