@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bitblance — Native Stablecoin DEX on Arc</title>
+<meta name="description" content="Bitblance is the native stablecoin DEX and FX router on the Arc network. Swap USDC, EURC and USYC with sub-second finality." />
+<meta property="og:title" content="Bitblance — Native Stablecoin DEX on Arc" />
+<meta property="og:description" content="Swap stablecoins with precision on the Arc network." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F6FB;
+  --bg-2:#EAEEF7;
+  --panel:#FFFFFF;
+  --panel-2:#EFF2FA;
+  --line:#D8DEEC;
+  --line-soft:#E4E9F4;
+  --txt:#131A2E;
+  --txt-2:#4A5573;
+  --txt-3:#8A93AC;
+  --aqua:#2E5BFF;
+  --aqua-dim:#1E43CC;
+  --indigo:#5B7CFF;
+  --violet:#7C4DFF;
+  --gold:#C99117;
+  --pos:#0FA968;
+  --neg:#E23B4E;
+  --usdc:#2775CA;
+  --eurc:#4C6EF5;
+  --usyc:#8B6DF0;
+  --r:16px;
+  --r-sm:11px;
+  --arc:linear-gradient(115deg,#2E5BFF 0%,#5B7CFF 55%,#7C4DFF 100%);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1200px 600px at 78% -10%, rgba(46,91,255,.08), transparent 60%),
+    radial-gradient(900px 500px at 8% 4%, rgba(91,124,255,.06), transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  font-family:'Inter',system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+.mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;letter-spacing:-.01em}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::selection{background:rgba(46,91,255,.22)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+/* ---------- Ticker ---------- */
+.ticker{border-bottom:1px solid var(--line-soft);background:rgba(255,255,255,.7);overflow:hidden;position:relative}
+.ticker::before,.ticker::after{content:"";position:absolute;top:0;bottom:0;width:70px;z-index:2;pointer-events:none}
+.ticker::before{left:0;background:linear-gradient(90deg,#FFFFFF,transparent)}
+.ticker::after{right:0;background:linear-gradient(270deg,#FFFFFF,transparent)}
+.ticker-track{display:flex;gap:40px;padding:9px 0;white-space:nowrap;width:max-content;animation:scroll 34s linear infinite}
+@keyframes scroll{to{transform:translateX(-50%)}}
+.ticker:hover .ticker-track{animation-play-state:paused}
+.tk{display:inline-flex;align-items:center;gap:9px;font-size:12.5px}
+.tk .sym{color:var(--txt-2);font-weight:600}
+.tk .px{color:var(--txt)}
+.tk .ch{font-size:11.5px}
+.up{color:var(--pos)} .down{color:var(--neg)}
+.dot{width:6px;height:6px;border-radius:50%}
+
+/* ---------- Header ---------- */
+header{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--line-soft)}
+.hd{display:flex;align-items:center;gap:26px;height:64px}
+.logo{display:flex;align-items:center;gap:11px;font-family:'Space Grotesk';font-weight:700;font-size:19px;letter-spacing:-.02em}
+.logo b{font-weight:700}
+.logo .b2{color:var(--txt-2);font-weight:500}
+.mark{width:30px;height:30px;flex:none}
+nav.tabs{display:flex;gap:2px;margin-left:6px}
+nav.tabs button{padding:8px 14px;border-radius:10px;color:var(--txt-2);font-weight:500;font-size:14px;position:relative;transition:.18s;white-space:nowrap}
+nav.tabs button:hover{color:var(--txt);background:var(--panel)}
+nav.tabs button.on{color:var(--txt);background:var(--panel-2)}
+nav.tabs button.on::after{content:"";position:absolute;left:14px;right:14px;bottom:2px;height:2px;border-radius:2px;background:var(--arc)}
+.soon-pill{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(201,145,23,.35);padding:1px 5px;border-radius:6px;margin-left:6px;vertical-align:middle}
+.hd-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.net{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);font-size:13px;font-weight:500}
+.net .dot{background:var(--aqua);box-shadow:0 0 8px var(--aqua)}
+.btn{padding:9px 16px;border-radius:11px;font-weight:600;font-size:14px;transition:.16s;border:1px solid transparent}
+.btn-primary{background:var(--arc);color:#FFFFFF;box-shadow:0 2px 10px rgba(46,91,255,.28)}
+.btn-primary:hover{filter:brightness(1.07);transform:translateY(-1px)}
+.btn-ghost{border-color:var(--line);background:var(--panel);color:var(--txt)}
+.btn-ghost:hover{border-color:var(--aqua-dim);background:var(--panel-2)}
+.wallet-chip{display:flex;align-items:center;gap:9px;padding:7px 8px 7px 13px;border:1px solid var(--line);border-radius:11px;background:var(--panel);font-size:13px}
+.wallet-chip .addr{font-weight:600}
+.wallet-chip .bal{color:var(--txt-2);font-size:12px}
+.wallet-chip .x{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--txt-3)}
+.wallet-chip .x:hover{background:var(--panel-2);color:var(--neg)}
+
+/* ---------- Layout ---------- */
+main{padding:34px 0 60px}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-3);font-weight:600}
+.page-head{margin-bottom:22px}
+.page-head h1{font-size:26px;margin:6px 0 4px;font-weight:600}
+.page-head p{color:var(--txt-2);margin:0;font-size:14.5px}
+
+/* ---------- Trade ---------- */
+.trade-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:22px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:20px}
+.card-hero{background:linear-gradient(180deg,var(--panel),#F3F5FC);border:1px solid var(--line);position:relative;overflow:hidden;box-shadow:0 4px 24px rgba(19,26,46,.05)}
+.card-hero::before{content:"";position:absolute;inset:0;background:radial-gradient(420px 180px at 100% 0,rgba(46,91,255,.07),transparent 70%);pointer-events:none}
+.seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:12px;padding:3px;gap:2px;margin-bottom:18px}
+.seg button{padding:7px 16px;border-radius:9px;font-weight:600;font-size:13.5px;color:var(--txt-2);transition:.15s}
+.seg button.on{background:var(--panel-2);color:var(--txt)}
+.field{background:var(--bg-2);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px;transition:.15s}
+.field:focus-within{border-color:var(--aqua-dim)}
+.field-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.field-top .lbl{font-size:12px;color:var(--txt-3);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.field-top .bal{font-size:12.5px;color:var(--txt-2)}
+.field-top .bal b{color:var(--txt);font-weight:600}
+.max{color:var(--aqua);font-size:11px;font-weight:700;margin-left:6px;cursor:pointer;letter-spacing:.03em}
+.field-row{display:flex;align-items:center;gap:12px}
+.amt{flex:1;background:none;border:none;outline:none;color:var(--txt);font-family:'IBM Plex Mono';font-size:30px;font-weight:500;width:100%;min-width:0}
+.amt::placeholder{color:var(--txt-3)}
+.sub{font-size:12.5px;color:var(--txt-3);margin-top:5px;font-family:'IBM Plex Mono'}
+.tok-btn{display:flex;align-items:center;gap:9px;background:var(--panel-2);border:1px solid var(--line);padding:8px 12px 8px 9px;border-radius:12px;font-weight:600;font-size:15px;transition:.15s;flex:none}
+.tok-btn:hover{border-color:var(--aqua-dim)}
+.tok-ico{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;font-family:'Space Grotesk';flex:none}
+.chev{color:var(--txt-3);font-size:11px}
+.switch-wrap{display:flex;justify-content:center;margin:-9px 0;position:relative;z-index:3}
+.switch{width:40px;height:40px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line);display:grid;place-items:center;color:var(--txt-2);transition:.2s}
+.switch:hover{color:var(--aqua);border-color:var(--aqua-dim);transform:rotate(180deg)}
+.gap8{height:8px}
+
+/* equilibrium beam */
+.beam{margin:16px 2px 4px;height:34px;position:relative;display:flex;align-items:center}
+.beam-track{position:absolute;left:0;right:0;height:2px;background:var(--line);border-radius:2px}
+.beam-fill{position:absolute;left:0;height:2px;border-radius:2px;background:var(--arc);width:50%;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.beam-node{position:absolute;top:50%;transform:translate(-50%,-50%);transition:left .5s cubic-bezier(.4,0,.2,1)}
+.beam-node .pin{width:12px;height:12px;border-radius:50%;background:var(--aqua);box-shadow:0 0 0 4px rgba(46,91,255,.16),0 0 12px rgba(46,91,255,.4)}
+.beam-label{position:absolute;top:20px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3);white-space:nowrap}
+.beam-end{position:absolute;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;border:1.5px solid var(--line);background:var(--panel)}
+.beam-end.l{left:0} .beam-end.r{right:0}
+
+.quote{margin-top:16px;border-top:1px dashed var(--line);padding-top:14px;display:grid;gap:9px}
+.qrow{display:flex;justify-content:space-between;font-size:13px}
+.qrow .k{color:var(--txt-2)}
+.qrow .v{font-family:'IBM Plex Mono';color:var(--txt)}
+.qrow .v.good{color:var(--aqua)}
+.route-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;background:var(--bg-2);border:1px solid var(--line-soft);padding:3px 9px;border-radius:8px;color:var(--txt-2)}
+.act-btn{width:100%;margin-top:18px;padding:15px;border-radius:14px;font-weight:700;font-size:15.5px;background:var(--arc);color:#FFFFFF;box-shadow:0 3px 14px rgba(46,91,255,.3);transition:.16s}
+.act-btn:hover:not(:disabled){filter:brightness(1.08)}
+.act-btn:disabled{background:var(--panel-2);color:var(--txt-3);cursor:not-allowed}
+.act-btn.warn{background:var(--panel-2);color:var(--gold);border:1px solid rgba(201,145,23,.35);box-shadow:none}
+
+/* side rail */
+.rail-card h3{font-size:14px;margin:0 0 14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.stat{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+.stat:last-child{border-bottom:none;padding-bottom:0}
+.stat .k{color:var(--txt-2);font-size:13px}
+.stat .v{font-family:'IBM Plex Mono';font-weight:500;font-size:14px}
+.mkt-row{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.mkt-row:last-child{border-bottom:none}
+.mkt-row .nm{font-weight:600;font-size:13.5px}
+.mkt-row .fn{color:var(--txt-3);font-size:11.5px}
+.mkt-row .px{margin-left:auto;text-align:right}
+.mkt-row .px .p{font-family:'IBM Plex Mono';font-size:13.5px}
+.mkt-row .px .c{font-size:11px}
+
+/* ---------- Token modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(19,26,46,.35);backdrop-filter:blur(4px);z-index:60;display:none;align-items:flex-start;justify-content:center;padding:80px 16px}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 24px 64px rgba(19,26,46,.18)}
+.modal-head{padding:18px 20px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;justify-content:between}
+.modal-head h3{margin:0;font-size:16px}
+.modal-head .cls{margin-left:auto;color:var(--txt-3);font-size:20px;width:30px;height:30px;border-radius:8px}
+.modal-head .cls:hover{background:var(--panel-2);color:var(--txt)}
+.search{margin:16px 20px;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:11px;padding:11px 14px;display:flex;gap:9px;align-items:center}
+.search input{flex:1;background:none;border:none;outline:none;color:var(--txt);font-size:14px}
+.tok-list{max-height:340px;overflow:auto;padding:0 8px 12px}
+.tok-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;cursor:pointer;transition:.12s}
+.tok-item:hover{background:var(--panel-2)}
+.tok-item .meta{flex:1}
+.tok-item .meta .s{font-weight:600;font-size:14.5px}
+.tok-item .meta .n{color:var(--txt-3);font-size:12px}
+.tok-item .bl{font-family:'IBM Plex Mono';color:var(--txt-2);font-size:13px}
+.tag{font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:6px;border:1px solid var(--line);color:var(--txt-3)}
+
+/* ---------- Generic sections ---------- */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.metric{background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;padding:18px}
+.metric .k{color:var(--txt-2);font-size:12.5px;font-weight:500}
+.metric .v{font-family:'IBM Plex Mono';font-size:26px;font-weight:600;margin-top:8px}
+.metric .d{font-size:12px;margin-top:4px}
+.empty{text-align:center;padding:52px 20px;color:var(--txt-3)}
+.empty .ico{width:52px;height:52px;margin:0 auto 14px;border-radius:14px;background:var(--panel-2);display:grid;place-items:center}
+.empty h3{color:var(--txt-2);font-weight:600;margin:0 0 6px;font-size:16px}
+.empty p{margin:0 auto;max-width:340px;font-size:13.5px}
+
+/* bridge */
+.bridge-net{display:flex;align-items:center;gap:10px;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:12px;padding:12px 14px;width:100%;transition:.15s}
+.bridge-net:hover{border-color:var(--aqua-dim)}
+.chain-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:12px;font-family:'Space Grotesk';flex:none;color:#fff}
+.sel-badge{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--aqua);border:1px solid var(--line);background:var(--panel);padding:6px 11px;border-radius:9px;flex:none}
+.info-strip{display:flex;gap:10px;align-items:flex-start;background:rgba(46,91,255,.06);border:1px solid rgba(46,91,255,.2);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--txt-2);margin-top:16px}
+.info-strip svg{flex:none;margin-top:1px}
+
+/* recurring */
+.freq-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.freq-grid button{padding:11px;border-radius:11px;border:1px solid var(--line-soft);background:var(--bg-2);color:var(--txt-2);font-weight:600;font-size:13px;transition:.14s}
+.freq-grid button.on{border-color:var(--aqua-dim);background:var(--panel-2);color:var(--aqua)}
+.order-item{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:12px;margin-bottom:10px}
+.order-item .rt{font-family:'IBM Plex Mono';font-size:14px}
+.order-item .mt{font-size:12px;color:var(--txt-3)}
+.mini-x{color:var(--txt-3);width:30px;height:30px;border-radius:8px}
+.mini-x:hover{color:var(--neg);background:var(--panel-2)}
+
+/* faucet */
+.faucet-tok{display:flex;align-items:center;gap:13px;padding:15px;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:13px;margin-bottom:11px}
+.faucet-tok .go{margin-left:auto;font-size:13px;font-weight:600;color:var(--aqua);display:flex;align-items:center;gap:5px}
+.step{display:flex;gap:14px;margin-bottom:16px}
+.step .num{width:30px;height:30px;border-radius:9px;background:var(--panel-2);border:1px solid var(--line);display:grid;place-items:center;font-family:'IBM Plex Mono';font-weight:600;font-size:13px;color:var(--aqua);flex:none}
+.step .body h4{margin:2px 0 3px;font-size:14.5px;font-weight:600}
+.step .body p{margin:0;color:var(--txt-2);font-size:13px}
+
+/* AI */
+.ai-wrap{display:flex;flex-direction:column;height:min(620px,72vh);background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);overflow:hidden}
+.ai-head{padding:16px 20px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:11px}
+.ai-orb{width:32px;height:32px;border-radius:50%;background:var(--arc);position:relative;flex:none}
+.ai-orb::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--panel);opacity:.35}
+.ai-body{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.msg{max-width:82%;padding:12px 15px;border-radius:14px;font-size:14px;line-height:1.55}
+.msg.ai{background:var(--panel-2);border:1px solid var(--line-soft);border-top-left-radius:5px;align-self:flex-start}
+.msg.me{background:var(--arc);color:#FFFFFF;font-weight:500;border-top-right-radius:5px;align-self:flex-end}
+.msg.ai b{color:var(--aqua)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 12px}
+.chip{padding:8px 13px;border-radius:20px;border:1px solid var(--line);background:var(--bg-2);font-size:12.5px;color:var(--txt-2);transition:.14s}
+.chip:hover{border-color:var(--aqua-dim);color:var(--txt)}
+.ai-input{padding:14px 16px;border-top:1px solid var(--line-soft);display:flex;gap:10px}
+.ai-input input{flex:1;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:12px;padding:12px 15px;color:var(--txt);outline:none;font-size:14px}
+.ai-input input:focus{border-color:var(--aqua-dim)}
+.ai-send{width:44px;height:44px;border-radius:12px;background:var(--arc);color:#FFFFFF;display:grid;place-items:center;flex:none}
+
+/* points */
+.points-hero{text-align:center;padding:40px 20px;background:linear-gradient(180deg,var(--panel),#F3F5FC);border:1px solid var(--line);border-radius:var(--r);position:relative;overflow:hidden;box-shadow:0 4px 24px rgba(19,26,46,.05)}
+.points-hero::before{content:"";position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:400px;height:400px;background:radial-gradient(circle,rgba(201,145,23,.12),transparent 65%)}
+.bell{width:64px;height:64px;margin:0 auto 20px;border-radius:18px;background:var(--panel-2);border:1px solid rgba(201,145,23,.35);display:grid;place-items:center;position:relative}
+.points-hero h2{font-size:30px;margin:0 0 8px;font-weight:600;position:relative}
+.points-hero p{color:var(--txt-2);max-width:440px;margin:0 auto 24px;position:relative}
+.waitlist{display:flex;gap:10px;max-width:420px;margin:0 auto;position:relative}
+.waitlist input{flex:1;background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:13px 16px;color:var(--txt);outline:none}
+.waitlist input:focus{border-color:var(--gold)}
+
+/* footer */
+footer{border-top:1px solid var(--line-soft);margin-top:40px}
+.ft{display:flex;align-items:center;gap:20px;padding:26px 0;flex-wrap:wrap}
+.ft .cp{color:var(--txt-3);font-size:13px}
+.ft .soc{margin-left:auto;display:flex;gap:8px}
+.ft .soc a{width:36px;height:36px;border-radius:10px;border:1px solid var(--line-soft);display:grid;place-items:center;color:var(--txt-2);transition:.14s}
+.ft .soc a:hover{border-color:var(--aqua-dim);color:var(--aqua)}
+
+/* toast */
+.toast-host{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:10px;align-items:center}
+.toast{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 18px;font-size:13.5px;display:flex;align-items:center;gap:11px;box-shadow:0 12px 32px rgba(19,26,46,.16);animation:pop .25s ease}
+.toast .dot{width:8px;height:8px;border-radius:50%}
+.toast.ok .dot{background:var(--aqua)} .toast.err .dot{background:var(--neg)} .toast.info .dot{background:var(--indigo)}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}}
+
+.hide{display:none!important}
+
+@media (max-width:920px){
+  .trade-grid{grid-template-columns:1fr}
+  .net{display:none}
+  .hd{flex-wrap:wrap;height:auto;padding-top:12px;gap:12px}
+  nav.tabs{order:5;width:100%;margin-left:0;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  .grid-3{grid-template-columns:1fr}
+  .grid-2{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  .amt{font-size:25px}
+  .page-head h1{font-size:22px}
+  .hd{gap:12px}
+  .freq-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<!-- Ticker -->
+<div class="ticker"><div class="ticker-track" id="ticker"></div></div>
+
+<!-- Header -->
+<header>
+<div class="wrap hd">
+  <div class="logo">
+    <svg class="mark" viewBox="0 0 40 40" fill="none">
+      <defs>
+        <linearGradient id="g" x1="4" y1="6" x2="36" y2="34">
+          <stop stop-color="#2E5BFF"/><stop offset=".55" stop-color="#5B7CFF"/><stop offset="1" stop-color="#7C4DFF"/>
+        </linearGradient>
+      </defs>
+      <path d="M8 32 A16 16 0 0 1 32 8" stroke="url(#g)" stroke-width="3.4" stroke-linecap="round"/>
+      <path d="M32 8 A16 16 0 0 1 20 34" stroke="#D8DEEC" stroke-width="3.4" stroke-linecap="round"/>
+      <circle cx="20" cy="20" r="4.4" fill="url(#g)"/>
+      <circle cx="20" cy="20" r="8.6" stroke="#D8DEEC" stroke-width="1.6"/>
+    </svg>
+    <span><b>bit</b><span class="b2">blance</span></span>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="hd-right">
+    <div class="net"><span class="dot"></span> Arc Testnet</div>
+    <div id="wallet-area"></div>
+  </div>
+</div>
+</header>
+
+<main class="wrap"><div id="view"></div></main>
+
+<footer><div class="wrap ft">
+  <div class="logo" style="font-size:15px">
+    <svg class="mark" style="width:22px;height:22px" viewBox="0 0 40 40" fill="none">
+      <path d="M8 32 A16 16 0 0 1 32 8" stroke="url(#g)" stroke-width="3.4" stroke-linecap="round"/>
+      <circle cx="20" cy="20" r="4" fill="url(#g)"/>
+    </svg>
+    <span><b>bit</b><span class="b2">blance</span></span>
+  </div>
+  <span class="cp">Bitblance Labs · © 2026 · Built on Arc</span>
+  <div class="soc">
+    <a href="#" aria-label="X"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.3 8.3L23 22h-6.8l-5.3-6.9L4.8 22H1.7l7.8-8.9L1 2h6.9l4.8 6.3L18.9 2Zm-1.2 18h1.9L7.4 4H5.4l12.3 16Z"/></svg></a>
+    <a href="#" aria-label="Telegram"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22 3 2 10.5l5.5 2L9 19l3-3.5 4.5 3.5L22 3Zm-4.5 4L10 12.5"/></svg></a>
+    <a href="#" aria-label="Discord"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 5.3A17 17 0 0 0 15.7 4l-.3.5a13 13 0 0 1 3.8 1.9c-4-1.9-8.6-1.9-12.6 0A13 13 0 0 1 10.3 4.5L10 4A17 17 0 0 0 5.7 5.3C3 9.3 2.3 13.2 2.6 17a17 17 0 0 0 5.2 2.6l.6-1a11 11 0 0 1-1.8-.9l.4-.3c3.4 1.6 7.1 1.6 10.5 0l.4.3c-.6.4-1.2.7-1.8.9l.6 1a17 17 0 0 0 5.2-2.6c.4-4.5-.7-8.4-2.9-11.7ZM9 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg></a>
+  </div>
+</div></footer>
+
+<!-- Token modal -->
+<div class="overlay" id="tokOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Select a token</h3><button class="cls" id="tokClose">×</button></div>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F6E8A" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+      <input id="tokSearch" placeholder="Search name or paste address"/>
+    </div>
+    <div class="tok-list" id="tokList"></div>
+  </div>
+</div>
+
+<!-- Network modal -->
+<div class="overlay" id="netOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3 id="netTitle">Select network</h3><button class="cls" id="netClose">×</button></div>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A93AC" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+      <input id="netSearch" placeholder="Search networks"/>
+    </div>
+    <div class="tok-list" id="netList"></div>
+  </div>
+</div>
+
+<div class="toast-host" id="toasts"></div>
+
+<script>
+/* ============ Arc Testnet config ============ */
+const ARC = {
+  chainIdDec: 5042002,
+  chainIdHex: '0x' + (5042002).toString(16),
+  name: 'Arc Testnet',
+  rpc: 'https://rpc.testnet.arc.network',
+  ws: 'wss://rpc.testnet.arc.network',
+  explorer: 'https://testnet.arcscan.app',
+  faucet: 'https://faucet.circle.com',
+  cctpDomain: 26
+};
+
+/* Real Arc Testnet token contracts (from Arc docs) */
+const TOKENS = [
+  {sym:'USDC', name:'USD Coin',        addr:'0x3600000000000000000000000000000000000000', dec:6, color:'#2775CA', price:1.00,  native:true,  peg:'USD'},
+  {sym:'EURC', name:'Euro Coin',       addr:'0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a', dec:6, color:'#4C6EF5', price:1.083, peg:'EUR'},
+  {sym:'USYC', name:'US Yield Coin',   addr:'0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C', dec:6, color:'#8B6DF0', price:1.094, peg:'USD', perm:true, apy:4.9}
+];
+const BRIDGE_CHAINS = [
+  {name:'Ethereum Sepolia', short:'ETH', color:'#627EEA', domain:0},
+  {name:'Base Sepolia',     short:'BASE',color:'#0052FF', domain:6},
+  {name:'Arbitrum Sepolia', short:'ARB', color:'#12AAFF', domain:3},
+  {name:'Avalanche Fuji',   short:'AVAX',color:'#E84142', domain:1},
+  {name:'OP Sepolia',       short:'OP',  color:'#FF0420', domain:2}
+];
+const ARC_CHAIN = {name:'Arc Testnet', short:'ARC', color:'#2E5BFF', domain:26, arc:true};
+const ALL_CHAINS = [ARC_CHAIN, ...BRIDGE_CHAINS];
+const FEE = 0.001; // 0.1% router fee
+
+/* ============ State ============ */
+let state = {
+  tab:'trade',
+  tradeMode:'swap',
+  fromTok: TOKENS[0],
+  toTok: TOKENS[1],
+  fromAmt:'',
+  account:null,
+  balances:{},        // sym -> float
+  nativeBal:null,
+  orders: loadLS('bb_orders', []),
+  bridgeFrom: BRIDGE_CHAINS[0],
+  bridgeTo: ARC_CHAIN,
+  pickingNet:null,
+  picking:null
+};
+
+/* ============ Utils ============ */
+function loadLS(k,f){try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch(e){return f}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function $(s,r=document){return r.querySelector(s)}
+function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
+function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):''}
+function fmt(n,d=2){if(n===''||n==null||isNaN(n))return '0.00';return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fmtc(n){return '$'+fmt(n, n>=1000?0:n>=1?2:4)}
+function toast(msg,type='ok'){
+  const t=el('div','toast '+type,'<span class="dot"></span>'+msg);
+  $('#toasts').appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='.3s';setTimeout(()=>t.remove(),300)},3200);
+}
+function ico(tok,size=26){
+  return `<span class="tok-ico" style="background:${tok.color};width:${size}px;height:${size}px;font-size:${size*.42}px">${tok.sym[0]}</span>`;
+}
+
+/* ============ Wallet / RPC ============ */
+async function rpc(method, params=[]){
+  const r = await fetch(ARC.rpc,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+  const j = await r.json();
+  if(j.error) throw new Error(j.error.message);
+  return j.result;
+}
+function hexToNum(hex, dec){
+  if(!hex||hex==='0x') return 0;
+  return Number(BigInt(hex)) / Math.pow(10,dec);
+}
+async function erc20Balance(tokenAddr, account, dec){
+  const data = '0x70a08231' + account.slice(2).padStart(64,'0');
+  const res = await rpc('eth_call',[{to:tokenAddr, data}, 'latest']);
+  return hexToNum(res, dec);
+}
+async function refreshBalances(){
+  if(!state.account) return;
+  try{
+    const nb = await rpc('eth_getBalance',[state.account,'latest']);
+    state.nativeBal = hexToNum(nb, 18);
+    for(const t of TOKENS){
+      try{ state.balances[t.sym] = await erc20Balance(t.addr, state.account, t.dec); }
+      catch(e){ state.balances[t.sym] = 0; }
+    }
+    render();
+  }catch(e){ console.warn('balance refresh failed', e); }
+}
+async function connect(){
+  if(!window.ethereum){
+    toast('No wallet detected. Install MetaMask or Rabby to connect.','err');
+    window.open('https://metamask.io/download/','_blank');
+    return;
+  }
+  try{
+    const accs = await window.ethereum.request({method:'eth_requestAccounts'});
+    state.account = accs[0];
+    await ensureArc();
+    toast('Wallet connected · '+short(state.account),'ok');
+    render();
+    refreshBalances();
+    window.ethereum.on?.('accountsChanged',(a)=>{state.account=a[0]||null;state.balances={};render();if(a[0])refreshBalances()});
+    window.ethereum.on?.('chainChanged',()=>refreshBalances());
+  }catch(e){ toast('Connection cancelled','err'); }
+}
+async function ensureArc(){
+  try{
+    await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:ARC.chainIdHex}]});
+  }catch(e){
+    if(e.code===4902 || /Unrecognized chain/i.test(e.message||'')){
+      try{
+        await window.ethereum.request({method:'wallet_addEthereumChain',params:[{
+          chainId:ARC.chainIdHex, chainName:ARC.name,
+          nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
+          rpcUrls:[ARC.rpc], blockExplorerUrls:[ARC.explorer]
+        }]});
+        toast('Arc Testnet added to wallet','ok');
+      }catch(_){ toast('Could not add Arc network','err'); }
+    }
+  }
+}
+function disconnect(){ state.account=null; state.balances={}; state.nativeBal=null; render(); toast('Wallet disconnected','info'); }
+
+/* ============ Quote logic ============ */
+function getQuote(){
+  const a = parseFloat(state.fromAmt);
+  if(!a || a<=0) return null;
+  const rate = state.fromTok.price / state.toTok.price;
+  const out = a * rate * (1 - FEE);
+  const usdIn = a * state.fromTok.price;
+  const usdOut = out * state.toTok.price;
+  return { rate, out, usdIn, usdOut, fee:a*state.fromTok.price*FEE,
+           minReceived: out*0.999, impact: Math.min(a/500000*100, 0.42) };
+}
+
+/* ============ Views ============ */
+const TABS = [
+  {id:'trade', label:'Trade'},
+  {id:'ai',    label:'Blance AI'},
+  {id:'profile',label:'Profile'},
+  {id:'recurring',label:'Recurring'},
+  {id:'faucet',label:'Faucet'},
+  {id:'points',label:'Points', soon:true}
+];
+
+function render(){
+  renderTicker();
+  renderTabs();
+  renderWallet();
+  const v = $('#view');
+  v.innerHTML='';
+  if(state.tab==='trade') v.appendChild(viewTrade());
+  else if(state.tab==='ai') v.appendChild(viewAI());
+  else if(state.tab==='profile') v.appendChild(viewProfile());
+  else if(state.tab==='recurring') v.appendChild(viewRecurring());
+  else if(state.tab==='faucet') v.appendChild(viewFaucet());
+  else if(state.tab==='points') v.appendChild(viewPoints());
+  if(state.tab==='ai') scrollAI();
+}
+
+function renderTicker(){
+  const t = $('#ticker');
+  const items = TOKENS.map(tk=>{
+    const ch = tk.sym==='USDC'?0.01: tk.sym==='EURC'?-0.18:0.06;
+    return `<span class="tk"><span class="dot" style="background:${tk.color}"></span><span class="sym">${tk.sym}</span><span class="px mono">${fmtc(tk.price)}</span><span class="ch mono ${ch>=0?'up':'down'}">${ch>=0?'+':''}${ch.toFixed(2)}%</span></span>`;
+  });
+  const extra = [
+    `<span class="tk"><span class="sym">Arc TVL</span><span class="px mono">$48.2M</span></span>`,
+    `<span class="tk"><span class="sym">24h Vol</span><span class="px mono">$6.41M</span></span>`,
+    `<span class="tk"><span class="sym">Block</span><span class="px mono">~0.48s</span></span>`,
+    `<span class="tk"><span class="sym">USYC APY</span><span class="px mono up">4.90%</span></span>`
+  ];
+  const all=[...items,...extra];
+  t.innerHTML = [...all,...all].join('');
+}
+
+function renderTabs(){
+  const nav=$('#tabs'); nav.innerHTML='';
+  TABS.forEach(tb=>{
+    const b=el('button', state.tab===tb.id?'on':'', tb.label + (tb.soon?'<span class="soon-pill">soon</span>':''));
+    b.onclick=()=>{ if(tb.soon && tb.id!=='points'){} state.tab=tb.id; render(); window.scrollTo({top:0,behavior:'smooth'}); };
+    nav.appendChild(b);
+  });
+}
+
+function renderWallet(){
+  const w=$('#wallet-area'); w.innerHTML='';
+  if(state.account){
+    const bal = state.balances['USDC']!=null ? fmt(state.balances['USDC'])+' USDC' : '—';
+    const chip=el('div','wallet-chip',
+      `<span class="tok-ico" style="width:22px;height:22px;font-size:9px;background:var(--arc);color:#fff">${state.account.slice(2,3).toUpperCase()}</span>
+       <div style="line-height:1.2"><div class="addr">${short(state.account)}</div><div class="bal mono">${bal}</div></div>
+       <button class="x" title="Disconnect"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>`);
+    chip.querySelector('.x').onclick=disconnect;
+    w.appendChild(chip);
+  }else{
+    const b=el('button','btn btn-primary','Connect Wallet');
+    b.onclick=connect; w.appendChild(b);
+  }
+}
+
+/* ---------- TRADE ---------- */
+function viewTrade(){
+  const root=el('div');
+  const head=el('div','page-head',
+    `<div class="eyebrow">Native stablecoin exchange</div>
+     <h1>Trade at the peg</h1>
+     <p>Swap and bridge fiat-backed stablecoins on Arc with deterministic, sub-second settlement.</p>`);
+  root.appendChild(head);
+
+  const grid=el('div','trade-grid');
+
+  // ---- main card ----
+  const card=el('div','card card-hero');
+  const seg=el('div','seg',
+    `<button data-m="swap" class="${state.tradeMode==='swap'?'on':''}">Swap</button>
+     <button data-m="bridge" class="${state.tradeMode==='bridge'?'on':''}">Bridge</button>`);
+  seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{state.tradeMode=b.dataset.m;render()});
+  card.appendChild(seg);
+
+  if(state.tradeMode==='swap') card.appendChild(swapPanel());
+  else card.appendChild(bridgePanel());
+
+  grid.appendChild(card);
+
+  // ---- side rail ----
+  const rail=el('div');
+  rail.style.display='grid'; rail.style.gap='16px';
+
+  const mkt=el('div','card rail-card');
+  mkt.innerHTML='<h3>Stablecoin markets</h3>';
+  TOKENS.forEach(t=>{
+    const ch = t.sym==='USDC'?0.01: t.sym==='EURC'?-0.18:0.06;
+    mkt.appendChild(el('div','mkt-row',
+      `${ico(t,30)}<div><div class="nm">${t.sym}</div><div class="fn">${t.name}</div></div>
+       <div class="px"><div class="p mono">${fmtc(t.price)}</div><div class="c mono ${ch>=0?'up':'down'}">${ch>=0?'+':''}${ch}%</div></div>`));
+  });
+  rail.appendChild(mkt);
+
+  const info=el('div','card rail-card');
+  info.innerHTML='<h3>Network</h3>';
+  [['Chain ID', ARC.chainIdDec],['Gas token','USDC'],['Finality','~0.48s · BFT'],['Router','Bitblance StableFX'],['Fee tier','0.10%']].forEach(([k,v])=>{
+    info.appendChild(el('div','stat',`<span class="k">${k}</span><span class="v">${v}</span>`));
+  });
+  rail.appendChild(info);
+
+  grid.appendChild(rail);
+  root.appendChild(grid);
+  return root;
+}
+
+function swapPanel(){
+  const p=el('div');
+  const q=getQuote();
+  const balFrom = state.balances[state.fromTok.sym];
+  const balTo = state.balances[state.toTok.sym];
+
+  // FROM
+  const from=el('div','field');
+  from.innerHTML=`<div class="field-top"><span class="lbl">You pay</span>
+    <span class="bal">Balance: <b class="mono">${balFrom!=null?fmt(balFrom):'—'}</b>${balFrom?'<span class="max">MAX</span>':''}</span></div>`;
+  const frow=el('div','field-row');
+  const inp=el('input','amt'); inp.placeholder='0.0'; inp.value=state.fromAmt; inp.inputMode='decimal';
+  inp.oninput=e=>{state.fromAmt=e.target.value.replace(/[^0-9.]/g,'');updateSwapLive()};
+  const tb=el('button','tok-btn',`${ico(state.fromTok)} ${state.fromTok.sym} <span class="chev">▾</span>`);
+  tb.onclick=()=>openTokenPicker('from');
+  frow.appendChild(inp); frow.appendChild(tb);
+  from.appendChild(frow);
+  from.appendChild(el('div','sub',`≈ ${fmtc(q?q.usdIn:0)}`));
+  from.querySelector('.sub').id='fromUsd';
+  if(balFrom) from.querySelector('.max').onclick=()=>{state.fromAmt=String(balFrom);render()};
+  p.appendChild(from);
+
+  // switch
+  const sw=el('div','switch-wrap');
+  const swb=el('button','switch','<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l3 3M17 20l-3-3"/></svg>');
+  swb.onclick=()=>{const f=state.fromTok;state.fromTok=state.toTok;state.toTok=f;render()};
+  sw.appendChild(swb); p.appendChild(sw);
+
+  // TO
+  const to=el('div','field');
+  to.innerHTML=`<div class="field-top"><span class="lbl">You receive</span>
+    <span class="bal">Balance: <b class="mono">${balTo!=null?fmt(balTo):'—'}</b></span></div>`;
+  const trow=el('div','field-row');
+  const outv=el('div','amt'); outv.id='toAmt'; outv.style.color=q?'var(--txt)':'var(--txt-3)';
+  outv.textContent=q?fmt(q.out,4):'0.0';
+  const tb2=el('button','tok-btn',`${ico(state.toTok)} ${state.toTok.sym} <span class="chev">▾</span>`);
+  tb2.onclick=()=>openTokenPicker('to');
+  trow.appendChild(outv); trow.appendChild(tb2);
+  to.appendChild(trow);
+  to.appendChild(el('div','sub',`≈ ${fmtc(q?q.usdOut:0)}`));
+  to.querySelector('.sub').id='toUsd';
+  p.appendChild(to);
+
+  // equilibrium beam
+  const dev = q ? Math.abs(1 - q.rate*state.toTok.price/state.fromTok.price) : 0;
+  const pct = q ? Math.min(95, Math.max(5, (q.rate/ (state.fromTok.price/state.toTok.price))*50 )) : 50;
+  const beam=el('div','beam');
+  beam.innerHTML=`
+    <div class="beam-track"></div>
+    <div class="beam-end l"></div><div class="beam-end r"></div>
+    <div class="beam-fill" id="beamFill" style="width:${pct}%"></div>
+    <div class="beam-node" id="beamNode" style="left:${pct}%"><div class="pin"></div>
+      <div class="beam-label">1 ${state.fromTok.sym} = ${q?fmt(q.rate,4):fmt(state.fromTok.price/state.toTok.price,4)} ${state.toTok.sym}</div>
+    </div>`;
+  p.appendChild(beam);
+
+  // quote details (always present, populated live)
+  const qd=el('div','quote'); qd.id='quoteBox'; if(!q) qd.style.display='none';
+  qd.innerHTML=quoteRows(q);
+  p.appendChild(qd);
+
+  // action
+  const btn=el('button','act-btn');
+  if(!state.account){ btn.textContent='Connect Wallet'; btn.classList.add('warn'); btn.onclick=connect; }
+  else if(!q){ btn.textContent='Enter an amount'; btn.disabled=true; }
+  else if(state.fromTok.perm || state.toTok.perm){
+    btn.textContent='USYC requires allowlisting'; btn.classList.add('warn');
+    btn.onclick=()=>toast('USYC is permissioned. Request allowlisting via Circle Support.','info');
+  }
+  else if(balFrom!=null && parseFloat(state.fromAmt)>balFrom){ btn.textContent='Insufficient '+state.fromTok.sym; btn.disabled=true; }
+  else { btn.textContent=`Swap ${state.fromTok.sym} → ${state.toTok.sym}`; btn.onclick=doSwap; }
+  p.appendChild(btn);
+
+  if(state.fromTok.perm||state.toTok.perm){
+    p.appendChild(el('div','info-strip',
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5B7CFF" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+       USYC is a yield-bearing, permissioned token. Trading requires wallet allowlisting through Circle (min. $100k, non-US institutions).`));
+  }
+  return p;
+}
+function quoteRows(q){
+  if(!q) return '';
+  return `
+    <div class="qrow"><span class="k">Rate</span><span class="v">1 ${state.fromTok.sym} = ${fmt(q.rate,4)} ${state.toTok.sym}</span></div>
+    <div class="qrow"><span class="k">Price impact</span><span class="v good">${q.impact.toFixed(2)}%</span></div>
+    <div class="qrow"><span class="k">Router fee (0.10%)</span><span class="v">${fmtc(q.fee)}</span></div>
+    <div class="qrow"><span class="k">Min. received</span><span class="v">${fmt(q.minReceived,4)} ${state.toTok.sym}</span></div>
+    <div class="qrow"><span class="k">Route</span><span class="route-chip"><span class="dot" style="background:var(--aqua)"></span>Bitblance StableFX</span></div>`;
+}
+function updateSwapLive(){
+  const q=getQuote();
+  const to=$('#toAmt'); if(to){to.textContent=q?fmt(q.out,4):'0.0';to.style.color=q?'var(--txt)':'var(--txt-3)';}
+  const fu=$('#fromUsd'); if(fu)fu.textContent=`≈ ${fmtc(q?q.usdIn:0)}`;
+  const tu=$('#toUsd'); if(tu)tu.textContent=`≈ ${fmtc(q?q.usdOut:0)}`;
+  const qb=$('#quoteBox'); if(qb){qb.style.display=q?'grid':'none';qb.innerHTML=quoteRows(q);}
+  const bf=$('#beamFill'),bn=$('#beamNode');
+  if(q&&bf){const pct=Math.min(95,Math.max(5,(q.rate/(state.fromTok.price/state.toTok.price))*50));bf.style.width=pct+'%';bn.style.left=pct+'%';}
+  // re-enable button state without full render for smoothness
+  const btn=$('.act-btn');
+  if(btn && state.account && q && !state.fromTok.perm && !state.toTok.perm){
+    const balFrom=state.balances[state.fromTok.sym];
+    if(balFrom!=null && parseFloat(state.fromAmt)>balFrom){btn.textContent='Insufficient '+state.fromTok.sym;btn.disabled=true;btn.classList.remove('warn');}
+    else{btn.textContent=`Swap ${state.fromTok.sym} → ${state.toTok.sym}`;btn.disabled=false;btn.onclick=doSwap;}
+  }
+}
+async function doSwap(){
+  const q=getQuote(); if(!q)return;
+  const btn=$('.act-btn'); btn.disabled=true; btn.textContent='Confirm in wallet…';
+  try{
+    // On testnet with live DEX contracts this would call the StableFX router.
+    // Demo build simulates confirmation + settlement.
+    await new Promise(r=>setTimeout(r,900));
+    btn.textContent='Settling on Arc…';
+    await new Promise(r=>setTimeout(r,700));
+    toast(`Swapped ${fmt(state.fromAmt,2)} ${state.fromTok.sym} → ${fmt(q.out,2)} ${state.toTok.sym}`,'ok');
+    state.fromAmt=''; render();
+  }catch(e){ toast('Swap failed: '+e.message,'err'); btn.disabled=false; }
+}
+
+function chainIco(c,size=30){
+  const bg=c.arc?'var(--arc)':c.color;
+  return `<span class="chain-ico" style="background:${bg};width:${size}px;height:${size}px">${c.short[0]}</span>`;
+}
+function netBtn(side){
+  const c=side==='from'?state.bridgeFrom:state.bridgeTo;
+  const b=el('button','bridge-net',
+    `${chainIco(c)}
+     <div style="text-align:left"><div style="font-weight:600">${c.name}</div><div style="font-size:11.5px;color:var(--txt-3)">CCTP domain ${c.domain}</div></div>
+     <span class="sel-badge">Select <span class="chev">▾</span></span>`);
+  b.onclick=()=>openNetPicker(side);
+  return b;
+}
+function bridgePanel(){
+  const p=el('div');
+  p.appendChild(el('div',null,'<div class="field-top" style="margin-bottom:9px"><span class="lbl">From network</span></div>'));
+  p.appendChild(netBtn('from'));
+
+  const sw=el('div','switch-wrap');
+  const swb=el('button','switch','<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l3 3M17 20l-3-3"/></svg>');
+  swb.title='Reverse direction';
+  swb.onclick=()=>{const f=state.bridgeFrom;state.bridgeFrom=state.bridgeTo;state.bridgeTo=f;render()};
+  sw.appendChild(swb); p.appendChild(sw);
+
+  p.appendChild(el('div',null,'<div class="field-top" style="margin:0 0 9px"><span class="lbl">To network</span></div>'));
+  p.appendChild(netBtn('to'));
+
+  const amt=el('div','field'); amt.style.marginTop='14px';
+  amt.innerHTML=`<div class="field-top"><span class="lbl">Amount (USDC)</span></div>
+    <div class="field-row"><input class="amt" id="brAmt" placeholder="0.0" inputmode="decimal"/>
+    ${ico(TOKENS[0])}</div>`;
+  p.appendChild(amt);
+
+  p.appendChild(el('div','info-strip',
+    `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5B7CFF" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+     Native USDC bridging via Circle CCTP V2 — burn on ${state.bridgeFrom.name}, mint natively on ${state.bridgeTo.name}. Typical settlement 30–90s with deterministic finality.`));
+
+  const btn=el('button','act-btn');
+  if(!state.account){btn.textContent='Connect Wallet';btn.classList.add('warn');btn.onclick=connect;}
+  else {btn.textContent=`Bridge ${state.bridgeFrom.short} → ${state.bridgeTo.short}`;btn.onclick=()=>{
+    const v=$('#brAmt').value; if(!parseFloat(v)){toast('Enter an amount','err');return;}
+    toast(`Bridge initiated: ${fmt(v,2)} USDC ${state.bridgeFrom.name} → ${state.bridgeTo.name}`,'info');
+  };}
+  p.appendChild(btn);
+  return p;
+}
+function openNetPicker(side){
+  state.pickingNet=side;
+  $('#netTitle').textContent = side==='from' ? 'Select source network' : 'Select destination network';
+  $('#netOverlay').classList.add('show');
+  $('#netSearch').value=''; $('#netSearch').focus();
+  renderNetList('');
+}
+function renderNetList(filter){
+  const list=$('#netList'); list.innerHTML='';
+  const cur = state.pickingNet==='from'?state.bridgeFrom:state.bridgeTo;
+  ALL_CHAINS.filter(c=>!filter||c.name.toLowerCase().includes(filter.toLowerCase())).forEach(c=>{
+    const item=el('div','tok-item',
+      `${chainIco(c,34)}<div class="meta"><div class="s">${c.name} ${c.arc?'<span class="tag">stablecoin-native</span>':''}</div><div class="n">CCTP domain ${c.domain}</div></div>
+       ${c===cur?'<span class="bl" style="color:var(--aqua);font-weight:700">✓</span>':''}`);
+    item.onclick=()=>{
+      const selfKey = state.pickingNet==='from'?'bridgeFrom':'bridgeTo';
+      const otherKey = state.pickingNet==='from'?'bridgeTo':'bridgeFrom';
+      if(state[otherKey]===c) state[otherKey]=state[selfKey];
+      state[selfKey]=c;
+      $('#netOverlay').classList.remove('show'); render();
+    };
+    list.appendChild(item);
+  });
+}
+
+/* ---------- TOKEN PICKER ---------- */
+function openTokenPicker(side){
+  state.picking=side;
+  const ov=$('#tokOverlay'); ov.classList.add('show');
+  $('#tokSearch').value=''; $('#tokSearch').focus();
+  renderTokList('');
+}
+function renderTokList(filter){
+  const list=$('#tokList'); list.innerHTML='';
+  TOKENS.filter(t=>!filter || (t.sym+t.name).toLowerCase().includes(filter.toLowerCase())).forEach(t=>{
+    const bal=state.balances[t.sym];
+    const item=el('div','tok-item',
+      `${ico(t,34)}<div class="meta"><div class="s">${t.sym} ${t.perm?'<span class="tag">permissioned</span>':''}</div><div class="n">${t.name}</div></div>
+       <div class="bl">${bal!=null?fmt(bal):''}</div>`);
+    item.onclick=()=>{
+      const other = state.picking==='from'?'toTok':'fromTok';
+      if(state[other].sym===t.sym){ // swap sides
+        state[other]= state.picking==='from'?state.fromTok:state.toTok;
+      }
+      if(state.picking==='from')state.fromTok=t; else state.toTok=t;
+      $('#tokOverlay').classList.remove('show'); render();
+    };
+    list.appendChild(item);
+  });
+}
+
+/* ---------- PROFILE ---------- */
+function viewProfile(){
+  const root=el('div');
+  root.appendChild(el('div','page-head',
+    `<div class="eyebrow">Portfolio</div><h1>Profile</h1>
+     <p>Your Arc Testnet stablecoin positions, activity and account overview.</p>`));
+
+  if(!state.account){
+    const e=el('div','card');
+    e.appendChild(connectEmpty('Connect to view your portfolio','Link a wallet to see live balances, positions and swap history on Arc Testnet.'));
+    root.appendChild(e); return root;
+  }
+
+  let total=0; TOKENS.forEach(t=>{ if(state.balances[t.sym]) total+=state.balances[t.sym]*t.price; });
+
+  const g=el('div','grid-3'); g.style.marginBottom='16px';
+  g.innerHTML=`
+    <div class="metric"><div class="k">Portfolio value</div><div class="v">${fmtc(total)}</div><div class="d up">on Arc Testnet</div></div>
+    <div class="metric"><div class="k">Native USDC (gas)</div><div class="v">${state.nativeBal!=null?fmt(state.nativeBal,4):'—'}</div><div class="d" style="color:var(--txt-3)">for transaction fees</div></div>
+    <div class="metric"><div class="k">Assets held</div><div class="v">${TOKENS.filter(t=>state.balances[t.sym]>0).length}/${TOKENS.length}</div><div class="d" style="color:var(--txt-3)">stablecoins</div></div>`;
+  root.appendChild(g);
+
+  const holdings=el('div','card');
+  holdings.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <h3 style="margin:0;font-size:15px">Holdings</h3>
+    <span class="mono" style="font-size:12px;color:var(--txt-3)">${short(state.account)}</span></div>`;
+  TOKENS.forEach(t=>{
+    const bal=state.balances[t.sym]||0; const val=bal*t.price;
+    const row=el('div','mkt-row');
+    row.innerHTML=`${ico(t,34)}<div><div class="nm">${t.sym}</div><div class="fn">${fmt(bal,4)} · ${t.peg} peg</div></div>
+      <div class="px"><div class="p mono">${fmtc(val)}</div><div class="c" style="color:var(--txt-3)">${total>0?((val/total)*100).toFixed(1):'0.0'}%</div></div>`;
+    holdings.appendChild(row);
+  });
+  const exp=el('a','',''); exp.href=`${ARC.explorer}/address/${state.account}`; exp.target='_blank';
+  exp.style.cssText='display:inline-flex;gap:6px;align-items:center;margin-top:14px;color:var(--aqua);font-size:13px;font-weight:600';
+  exp.innerHTML='View on Arcscan <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M17 7H9M17 7v8"/></svg>';
+  holdings.appendChild(exp);
+  root.appendChild(holdings);
+  return root;
+}
+
+/* ---------- RECURRING ---------- */
+function viewRecurring(){
+  const root=el('div');
+  root.appendChild(el('div','page-head',
+    `<div class="eyebrow">Automation</div><h1>Recurring orders</h1>
+     <p>Dollar-cost average between stablecoins on a fixed schedule. Set it once, let Arc settle the rest.</p>`));
+
+  const grid=el('div','trade-grid');
+
+  // builder
+  const card=el('div','card card-hero');
+  card.innerHTML='<h3 style="margin:0 0 16px;font-size:15px">New recurring order</h3>';
+  let cfg={amt:'',from:TOKENS[0],to:TOKENS[1],freq:'Weekly'};
+
+  const amtField=el('div','field');
+  amtField.innerHTML=`<div class="field-top"><span class="lbl">Amount per cycle</span></div><div class="field-row"><input class="amt" id="rcAmt" placeholder="0.0" inputmode="decimal"/></div>`;
+  card.appendChild(amtField);
+
+  const pair=el('div',null); pair.style.cssText='display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-top:12px';
+  const fromSel=makeSelect(TOKENS,cfg.from,t=>cfg.from=t);
+  const toSel=makeSelect(TOKENS,cfg.to,t=>cfg.to=t);
+  const arrow=el('div','',''); arrow.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F6E8A" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  pair.appendChild(fromSel);pair.appendChild(arrow);pair.appendChild(toSel);
+  const pairLabel=el('div','field-top','<span class="lbl" style="margin-top:14px;display:block">Swap pair</span>');
+  card.appendChild(pairLabel);
+  card.appendChild(pair);
+
+  const flabel=el('div','field-top'); flabel.innerHTML='<span class="lbl" style="margin-top:14px;display:block">Frequency</span>'; card.appendChild(flabel);
+  const fg=el('div','freq-grid');
+  ['Daily','Weekly','Biweekly','Monthly'].forEach(f=>{
+    const b=el('button',f===cfg.freq?'on':'',f);
+    b.onclick=()=>{cfg.freq=f;fg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')};
+    fg.appendChild(b);
+  });
+  card.appendChild(fg);
+
+  const create=el('button','act-btn','Create recurring order');
+  create.onclick=()=>{
+    const v=$('#rcAmt').value;
+    if(!parseFloat(v)){toast('Enter an amount','err');return;}
+    if(cfg.from.sym===cfg.to.sym){toast('Choose two different tokens','err');return;}
+    state.orders.push({id:Date.now(),amt:parseFloat(v),from:cfg.from.sym,to:cfg.to.sym,freq:cfg.freq,fromColor:cfg.from.color,toColor:cfg.to.color});
+    saveLS('bb_orders',state.orders);
+    toast('Recurring order created','ok');
+    render();
+  };
+  card.appendChild(create);
+  grid.appendChild(card);
+
+  // active orders
+  const list=el('div','card');
+  list.innerHTML='<h3 style="margin:0 0 14px;font-size:15px">Active orders</h3>';
+  if(state.orders.length===0){
+    list.appendChild(el('div','empty',
+      `<div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5F6E8A" stroke-width="2"><path d="M12 8v4l3 2M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0Z"/></svg></div>
+       <h3>No active orders</h3><p>Your scheduled swaps will appear here once created.</p>`));
+  }else{
+    state.orders.forEach(o=>{
+      const item=el('div','order-item');
+      item.innerHTML=`<div style="display:flex"><span class="tok-ico" style="background:${o.fromColor};width:28px;height:28px;font-size:11px">${o.from[0]}</span><span class="tok-ico" style="background:${o.toColor};width:28px;height:28px;font-size:11px;margin-left:-8px">${o.to[0]}</span></div>
+        <div><div class="rt">${fmt(o.amt)} ${o.from} → ${o.to}</div><div class="mt">${o.freq} · next in ${o.freq==='Daily'?'~14h':o.freq==='Weekly'?'4d':o.freq==='Monthly'?'22d':'9d'}</div></div>
+        <button class="mini-x" title="Cancel"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`;
+      item.querySelector('.mini-x').onclick=()=>{state.orders=state.orders.filter(x=>x.id!==o.id);saveLS('bb_orders',state.orders);render();toast('Order cancelled','info')};
+      list.appendChild(item);
+    });
+  }
+  grid.appendChild(list);
+  root.appendChild(grid);
+  return root;
+}
+function makeSelect(tokens,current,onPick){
+  const wrap=el('div','tok-btn'); wrap.style.width='100%'; wrap.style.justifyContent='space-between';
+  let cur=current;
+  const paint=()=>wrap.innerHTML=`${ico(cur,24)} ${cur.sym} <span class="chev">▾</span>`;
+  paint();
+  wrap.onclick=()=>{const i=tokens.indexOf(cur);cur=tokens[(i+1)%tokens.length];onPick(cur);paint()};
+  return wrap;
+}
+
+/* ---------- FAUCET ---------- */
+function viewFaucet(){
+  const root=el('div');
+  root.appendChild(el('div','page-head',
+    `<div class="eyebrow">Testnet resources</div><h1>Faucet</h1>
+     <p>Fund your wallet with Arc Testnet stablecoins to start trading. Everything here is test-only — no real value.</p>`));
+  const grid=el('div','trade-grid');
+
+  const card=el('div','card');
+  card.innerHTML='<h3 style="margin:0 0 14px;font-size:15px">Request testnet tokens</h3>';
+  [TOKENS[0],TOKENS[1]].forEach(t=>{
+    const row=el('div','faucet-tok');
+    row.innerHTML=`${ico(t,36)}<div><div style="font-weight:600">${t.sym}</div><div style="font-size:12px;color:var(--txt-3)">${t.name} · from Circle Faucet</div></div>
+      <a class="go" href="${ARC.faucet}" target="_blank">Request <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M17 7H9M17 7v8"/></svg></a>`;
+    card.appendChild(row);
+  });
+  const addBtn=el('button','act-btn','Add Arc Testnet to wallet');
+  addBtn.style.background='var(--panel-2)'; addBtn.style.color='var(--aqua)'; addBtn.style.border='1px solid var(--line)';
+  addBtn.onclick=()=>{ if(!window.ethereum){toast('No wallet detected','err');return;} ensureArc(); };
+  card.appendChild(addBtn);
+  grid.appendChild(card);
+
+  const steps=el('div','card');
+  steps.innerHTML='<h3 style="margin:0 0 16px;font-size:15px">Get started in 3 steps</h3>';
+  [['1','Add the network','Add Arc Testnet to MetaMask or Rabby — Chain ID '+ARC.chainIdDec+', gas paid in USDC.'],
+   ['2','Claim test USDC','Open the Circle Faucet, pick Arc Testnet, and request USDC (also covers gas).'],
+   ['3','Connect & trade','Connect your wallet on Bitblance and swap at the peg.']].forEach(([n,h,b])=>{
+    steps.appendChild(el('div','step',`<div class="num">${n}</div><div class="body"><h4>${h}</h4><p>${b}</p></div>`));
+  });
+  const link=el('a',''); link.href=ARC.faucet; link.target='_blank';
+  link.style.cssText='display:inline-flex;gap:6px;align-items:center;color:var(--aqua);font-size:13px;font-weight:600';
+  link.innerHTML='Open Circle Faucet <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M17 7H9M17 7v8"/></svg>';
+  steps.appendChild(link);
+  grid.appendChild(steps);
+  root.appendChild(grid);
+  return root;
+}
+
+/* ---------- AI ---------- */
+let aiHistory = [{role:'ai',text:"Hi — I'm <b>Blance</b>, your stablecoin copilot on Arc. Ask me about rates, your portfolio, bridging, or how the network works."}];
+function viewAI(){
+  const root=el('div');
+  root.appendChild(el('div','page-head',
+    `<div class="eyebrow">Copilot</div><h1>Blance AI</h1>
+     <p>An assistant for stablecoin FX on Arc — routing, network facts and portfolio questions.</p>`));
+  const w=el('div','ai-wrap');
+  w.innerHTML=`<div class="ai-head"><div class="ai-orb"></div>
+     <div><div style="font-weight:600;font-family:Space Grotesk">Blance</div><div style="font-size:12px;color:var(--txt-3)">Stablecoin copilot · Arc Testnet</div></div>
+     <div style="margin-left:auto;font-size:11px;color:var(--aqua);display:flex;align-items:center;gap:6px"><span class="dot" style="background:var(--aqua);width:7px;height:7px"></span>online</div></div>`;
+  const body=el('div','ai-body'); body.id='aiBody';
+  aiHistory.forEach(m=>body.appendChild(el('div','msg '+m.role,m.text)));
+  w.appendChild(body);
+
+  const chips=el('div','chips');
+  ['Best USDC → EURC rate?','How do I bridge to Arc?','What is USYC?','Explain Arc gas fees'].forEach(c=>{
+    const ch=el('button','chip',c); ch.onclick=()=>{sendAI(c)}; chips.appendChild(ch);
+  });
+  w.appendChild(chips);
+
+  const inputRow=el('div','ai-input');
+  inputRow.innerHTML=`<input id="aiInput" placeholder="Ask Blance anything about stablecoins on Arc…"/>
+    <button class="ai-send" id="aiSend"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg></button>`;
+  w.appendChild(inputRow);
+  root.appendChild(w);
+  setTimeout(()=>{
+    const inp=$('#aiInput');
+    inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim())sendAI(inp.value)};
+    $('#aiSend').onclick=()=>{if(inp.value.trim())sendAI(inp.value)};
+  },0);
+  return root;
+}
+function scrollAI(){const b=$('#aiBody');if(b)b.scrollTop=b.scrollHeight;}
+function sendAI(text){
+  aiHistory.push({role:'me',text});
+  const reply=blanceReply(text);
+  const inp=$('#aiInput'); if(inp)inp.value='';
+  render();
+  setTimeout(()=>{ aiHistory.push({role:'ai',text:reply}); render(); },450);
+}
+function blanceReply(q){
+  const t=q.toLowerCase();
+  if(/rate|price|usdc.*eurc|eurc.*usdc|convert/.test(t)){
+    const r=TOKENS[0].price/TOKENS[1].price;
+    return `Right now <b>1 USDC ≈ ${fmt(r,4)} EURC</b> (EURC tracks EUR at ~$${fmt(TOKENS[1].price,3)}). Bitblance routes it through <b>StableFX</b> at a 0.10% fee with sub-second settlement. Head to the Trade tab to execute.`;
+  }
+  if(/bridge|cctp|move.*arc|transfer.*arc/.test(t)){
+    return `Bridging uses <b>Circle CCTP V2</b>: your USDC is burned on the source chain and minted natively on Arc (domain 26). It settles in ~30–90s with a single confirmation because Arc has deterministic BFT finality. Open <b>Trade → Bridge</b>, pick a source chain, and enter an amount.`;
+  }
+  if(/usyc/.test(t)){
+    return `<b>USYC</b> is Circle's yield-bearing token (~4.9% APY) backed by short-duration US Treasuries. On Arc it's <b>permissioned</b> — trading needs wallet allowlisting via Circle (non-US institutions, $100k min). You'll see it flagged in the token picker.`;
+  }
+  if(/gas|fee|cost/.test(t)){
+    return `Arc pays gas in <b>USDC</b> (not ETH). The native token uses 18 decimals internally but displays as 6-decimal USDC. Min base fee is ~20 Gwei and EIP-1559 is supported, so a swap costs a fraction of a cent. You just need a little USDC in your wallet from the Faucet.`;
+  }
+  if(/portfolio|balance|holding|my /.test(t)){
+    if(!state.account) return `Connect your wallet first and I'll read your live Arc Testnet balances — I can then break down your portfolio by asset and value.`;
+    let total=0,lines=[]; TOKENS.forEach(k=>{const b=state.balances[k.sym]||0;if(b>0){total+=b*k.price;lines.push(`${fmt(b,2)} ${k.sym}`)}});
+    return total>0?`Your portfolio is worth <b>${fmtc(total)}</b> across: ${lines.join(', ')}. Native USDC for gas: ${fmt(state.nativeBal||0,4)}.`:`Your wallet is connected but I don't see any stablecoin balances yet. Grab some test USDC from the Faucet tab to get going.`;
+  }
+  if(/what|how|arc|network|explain/.test(t)){
+    return `<b>Arc</b> is Circle's stablecoin-native chain: USDC is the gas token, blocks finalize in ~0.48s via Malachite BFT, and there are no reorgs. Bitblance is the native FX router on top — swap, bridge, and DCA between USDC, EURC and USYC. What would you like to do?`;
+  }
+  return `I can help with stablecoin rates, bridging via CCTP, USYC, Arc gas mechanics, or your portfolio. Try one of the suggestions above, or ask me to walk you through a swap.`;
+}
+
+/* ---------- POINTS ---------- */
+function viewPoints(){
+  const root=el('div');
+  const hero=el('div','points-hero');
+  hero.innerHTML=`
+    <div class="bell"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#F5C56B" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+    <h2>BitBlance Points</h2>
+    <p>Earn points for every swap, bridge and recurring order on Arc. Loyalty rewards for the earliest Bitblance traders — launching soon.</p>
+    <div class="waitlist"><input id="wlEmail" placeholder="you@email.com"/><button class="btn btn-primary" id="wlBtn" style="padding:13px 20px">Join waitlist</button></div>`;
+  root.appendChild(hero);
+
+  const g=el('div','grid-3'); g.style.marginTop='16px';
+  [['Trade','1 pt / $1 swapped','Every stablecoin swap accrues points at the peg.'],
+   ['Bridge','2× multiplier','Bringing USDC to Arc via CCTP earns double.'],
+   ['Refer','+10% forever','Share your code and earn a cut of referred volume.']].forEach(([h,v,d])=>{
+    g.appendChild(el('div','metric',`<div class="k">${h}</div><div class="v" style="font-size:18px;color:var(--gold)">${v}</div><div class="d" style="color:var(--txt-3);font-size:12px">${d}</div>`));
+  });
+  root.appendChild(g);
+  setTimeout(()=>{ const b=$('#wlBtn'); if(b)b.onclick=()=>{const e=$('#wlEmail').value; if(/.+@.+\..+/.test(e)){toast('You are on the list — see you at launch','ok');$('#wlEmail').value='';}else toast('Enter a valid email','err');}; },0);
+  return root;
+}
+
+function connectEmpty(h,p){
+  const e=el('div','empty',
+    `<div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5F6E8A" stroke-width="2"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M16 13h.01M2 10h20"/></svg></div>
+     <h3>${h}</h3><p>${p}</p>`);
+  const b=el('button','btn btn-primary','Connect Wallet'); b.style.marginTop='18px'; b.onclick=connect;
+  e.appendChild(b); return e;
+}
+
+/* ============ Wire up ============ */
+$('#tokClose').onclick=()=>$('#tokOverlay').classList.remove('show');
+$('#tokOverlay').onclick=e=>{if(e.target.id==='tokOverlay')$('#tokOverlay').classList.remove('show')};
+$('#tokSearch').oninput=e=>renderTokList(e.target.value);
+$('#netClose').onclick=()=>$('#netOverlay').classList.remove('show');
+$('#netOverlay').onclick=e=>{if(e.target.id==='netOverlay')$('#netOverlay').classList.remove('show')};
+$('#netSearch').oninput=e=>renderNetList(e.target.value);
+
+// auto-reconnect if already authorized
+if(window.ethereum){
+  window.ethereum.request({method:'eth_accounts'}).then(a=>{
+    if(a&&a[0]){state.account=a[0];render();refreshBalances();
+      window.ethereum.on?.('accountsChanged',(x)=>{state.account=x[0]||null;state.balances={};render();if(x[0])refreshBalances()});
+      window.ethereum.on?.('chainChanged',()=>refreshBalances());
+    }
+  }).catch(()=>{});
+}
+
+render();
+</script>
+</body>
+</html>
