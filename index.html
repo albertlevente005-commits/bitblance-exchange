@@ -476,9 +476,21 @@ async function connect(){
   if(cbtn){cbtn.textContent='Check MetaMask...';cbtn.disabled=true;}
   toast('Approve the request in the MetaMask popup (fox icon, top right)','info');
   try{
-    const accs = await window.ethereum.request({method:'eth_requestAccounts'});
+    let accs=[];
+    try{
+      accs = await window.ethereum.request({method:'eth_requestAccounts'});
+    }catch(e1){
+      try{
+        await window.ethereum.request({method:'wallet_requestPermissions',params:[{eth_accounts:{}}]});
+        accs = await window.ethereum.request({method:'eth_accounts'});
+      }catch(e2){
+        try{ accs = await window.ethereum.request({method:'eth_accounts'}); }catch(e3){ accs=[]; }
+        if(!accs || !accs.length) throw e1;
+      }
+    }
+    if(!accs || !accs.length) throw new Error('No account returned by wallet');
     state.account = accs[0];
-    await ensureArc();
+    try{ await ensureArc(); }catch(eArc){ toast('Connected. Add Arc Testnet from the Faucet tab when ready.','info'); }
     toast('Wallet connected · '+short(state.account),'ok');
     render();
     refreshBalances();
