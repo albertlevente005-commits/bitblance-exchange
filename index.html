@@ -433,6 +433,22 @@ async function waitReceipt(hash, btn, label){
   throw new Error('timed out waiting for confirmation');
 }
 
+/* Circle CCTP V2 (testnet) - real cross-chain bridging */
+const CCTP = {
+  messenger: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA',
+  transmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275',
+  iris: 'https://iris-api-sandbox.circle.com',
+  sel: { depositForBurn: '0x8e0250ee', receiveMessage: '0x57ecfd28' }
+};
+const EVM_CHAINS = {
+  0: {hex:'0xaa36a7', name:'Ethereum Sepolia', rpc:'https://ethereum-sepolia-rpc.publicnode.com', sym:'ETH', exp:'https://sepolia.etherscan.io'},
+  6: {hex:'0x14a34', name:'Base Sepolia', rpc:'https://sepolia.base.org', sym:'ETH', exp:'https://sepolia.basescan.org'},
+  3: {hex:'0x66eee', name:'Arbitrum Sepolia', rpc:'https://sepolia-rollup.arbitrum.io/rpc', sym:'ETH', exp:'https://sepolia.arbiscan.io'},
+  1: {hex:'0xa869', name:'Avalanche Fuji', rpc:'https://api.avax-test.network/ext/bc/C/rpc', sym:'AVAX', exp:'https://testnet.snowtrace.io'},
+  2: {hex:'0xaa37dc', name:'OP Sepolia', rpc:'https://sepolia.optimism.io', sym:'ETH', exp:'https://sepolia-optimism.etherscan.io'}
+};
+const encBytes = (hex) => { const h=hex.replace(/^0x/,''); const padded=h.padEnd(Math.ceil(h.length/64)*64,'0'); return pad(h.length/2)+padded; };
+
 /* Real Arc Testnet token contracts (from Arc docs) */
 const TOKENS = [
   {sym:'USDC', name:'USD Coin',        addr:'0x3600000000000000000000000000000000000000', dec:6, color:'#2775CA', price:1.00,  native:true,  peg:'USD'},
@@ -916,14 +932,14 @@ function bridgePanel(){
 
   p.appendChild(el('div','info-strip',
     `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5B7CFF" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-     Native USDC bridging via Circle CCTP V2 — burn on ${state.bridgeFrom.name}, mint natively on ${state.bridgeTo.name}. Typical settlement 30–90s with deterministic finality.`));
+     Real Circle CCTP V2: your USDC is burned on ${state.bridgeFrom.name} and minted on ${state.bridgeTo.name} after Circle's attestation (~15-60s). Claiming on the destination needs a little gas there.`));
+
+  const st=el('div'); st.style.cssText='margin-top:12px;font-size:13px;color:var(--txt-2);line-height:1.6';
+  p.appendChild(st);
 
   const btn=el('button','act-btn');
   if(!state.account){btn.textContent='Connect Wallet';btn.classList.add('warn');btn.onclick=connect;}
-  else {btn.textContent=`Bridge ${state.bridgeFrom.short} → ${state.bridgeTo.short}`;btn.onclick=()=>{
-    const v=$('#brAmt').value; if(!parseFloat(v)){toast('Enter an amount','err');return;}
-    toast(`Bridge initiated: ${fmt(v,2)} USDC ${state.bridgeFrom.name} → ${state.bridgeTo.name}`,'info');
-  };}
+  else {btn.textContent='Bridge '+state.bridgeFrom.short+' \u2192 '+state.bridgeTo.short;btn.onclick=()=>doBridge(st);}
   p.appendChild(btn);
   return p;
 }
@@ -950,6 +966,102 @@ function renderNetList(filter){
     };
     list.appendChild(item);
   });
+}
+
+/* ---------- REAL CCTP BRIDGE ---------- */
+async function doBridge(st){
+  const v=$('#brAmt').value;
+  if(!parseFloat(v)){toast('Enter an amount','err');return;}
+  if(!state.account){toast('Connect your wallet first','err');return;}
+  if(!state.bridgeFrom.arc){ toast('Live bridging currently runs from Arc to other testnets - flip the direction with the middle arrow.','err'); return; }
+  const dest = state.bridgeTo; const dc = EVM_CHAINS[dest.domain];
+  if(!dc){ toast('Unsupported destination','err'); return; }
+  const btn=$('.act-btn'); btn.disabled=true;
+  try{
+    btn.textContent='Checking CCTP contracts\u2026';
+    const code = await rpc('eth_getCode',[CCTP.messenger,'latest']);
+    if(!code || code==='0x'){ throw new Error('CCTP TokenMessenger not found on Arc at the expected address'); }
+    const amt=units(v,6);
+    const allowRaw=await rpc('eth_call',[{to:TOKENS[0].addr,data:DEX.sel.allowance+pad(state.account)+pad(CCTP.messenger)},'latest']);
+    if(BigInt(allowRaw||'0x0')<amt){
+      toast('Step 1: approve USDC for CCTP in MetaMask','info');
+      btn.textContent='Approve USDC\u2026';
+      const atx=await window.ethereum.request({method:'eth_sendTransaction',params:[{from:state.account,to:TOKENS[0].addr,data:DEX.sel.approve+pad(CCTP.messenger)+pad(amt)}]});
+      await waitReceipt(atx,btn,'Approving\u2026');
+    }
+    toast('Step 2: confirm the burn (depositForBurn) in MetaMask','info');
+    btn.textContent='Confirm burn in MetaMask\u2026';
+    const data = CCTP.sel.depositForBurn + pad(amt) + pad(dest.domain) + pad(state.account) + pad(TOKENS[0].addr) + pad(0) + pad(0) + pad(2000);
+    const btx=await window.ethereum.request({method:'eth_sendTransaction',params:[{from:state.account,to:CCTP.messenger,data}]});
+    btn.textContent='Burning on Arc\u2026';
+    await waitReceipt(btx,btn,'Burning on Arc\u2026');
+    toast('Burned '+fmt(v,2)+' USDC on Arc - waiting for Circle attestation','ok');
+    st.innerHTML='\ud83d\udd25 Burn tx: <span class="mono">'+btx.slice(0,14)+'\u2026</span><br>\u23f3 Waiting for Circle attestation (usually 15-60s)\u2026';
+    btn.textContent='Waiting for attestation\u2026';
+    const m = await pollAttestation(btx, btn);
+    st.innerHTML='\u2705 Attestation ready. Claim your USDC on '+dest.name+'. You need a little '+dc.sym+' gas there.';
+    btn.disabled=false; btn.textContent='Claim on '+dest.name;
+    btn.onclick=()=>claimOnDest(dest, dc, m, st);
+    toast('Attestation ready - press "Claim on '+dest.name+'"','info');
+  }catch(e){
+    const msg=(e&&e.message)||'unknown';
+    if(e&&e.code===4001) toast('Rejected in MetaMask','err');
+    else toast('Bridge failed: '+msg,'err');
+    btn.disabled=false; render();
+  }
+}
+async function pollAttestation(txHash, btn){
+  for(let i=0;i<60;i++){
+    await new Promise(r=>setTimeout(r,5000));
+    try{
+      const r=await fetch(CCTP.iris+'/v2/messages/'+ARC.cctpDomain+'?transactionHash='+txHash,{cache:'no-store'});
+      if(r.ok){
+        const j=await r.json();
+        const m=j&&j.messages&&j.messages[0];
+        if(m&&m.status==='complete'&&m.attestation&&m.attestation!=='PENDING') return m;
+      }
+    }catch(e){}
+    if(btn) btn.textContent='Waiting for attestation\u2026 ('+((i+1)*5)+'s)';
+  }
+  throw new Error('attestation timed out - it may still complete, retry later');
+}
+async function claimOnDest(dest, dc, m, st){
+  const btn=$('.act-btn'); btn.disabled=true;
+  try{
+    btn.textContent='Switching network\u2026';
+    try{
+      await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:dc.hex}]});
+    }catch(e){
+      if(e.code===4902 || /Unrecognized/i.test(e.message||'')){
+        await window.ethereum.request({method:'wallet_addEthereumChain',params:[{chainId:dc.hex,chainName:dc.name,nativeCurrency:{name:dc.sym,symbol:dc.sym,decimals:18},rpcUrls:[dc.rpc],blockExplorerUrls:[dc.exp]}]});
+      } else { throw e; }
+    }
+    toast('Confirm the mint (receiveMessage) in MetaMask on '+dest.name,'info');
+    btn.textContent='Confirm mint in MetaMask\u2026';
+    const msgBytes=(m.message.length-2)/2;
+    const off2 = 0x40 + 32 + Math.ceil(msgBytes/32)*32;
+    const data = CCTP.sel.receiveMessage + pad(0x40) + pad(off2) + encBytes(m.message) + encBytes(m.attestation);
+    const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{from:state.account,to:CCTP.transmitter,data}]});
+    st.innerHTML='\u23f3 Minting on '+dest.name+'\u2026';
+    btn.textContent='Minting\u2026';
+    for(let i=0;i<40;i++){
+      await new Promise(r=>setTimeout(r,4000));
+      try{
+        const rc=await window.ethereum.request({method:'eth_getTransactionReceipt',params:[tx]});
+        if(rc&&rc.blockNumber){ if(rc.status&&BigInt(rc.status)===0n) throw new Error('mint reverted on destination'); break; }
+      }catch(e){ if(/revert/i.test((e&&e.message)||'')) throw e; }
+    }
+    st.innerHTML='\ud83c\udf89 USDC minted on '+dest.name+'! Tx: <span class="mono">'+tx.slice(0,14)+'\u2026</span>';
+    toast('Bridge complete - USDC arrived on '+dest.name,'ok');
+    btn.disabled=false; btn.textContent='Switch back to Arc';
+    btn.onclick=async()=>{ btn.disabled=true; try{ await ensureArc(); }catch(e){} render(); };
+  }catch(e){
+    const msg=(e&&e.message)||'unknown';
+    if(e&&e.code===4001) toast('Rejected in MetaMask','err');
+    else if(/insufficient funds/i.test(msg)) toast('You need a little '+dc.sym+' gas on '+dest.name+' - get some from a faucet, then press Claim again','err');
+    else toast('Claim failed: '+msg,'err');
+    btn.disabled=false; btn.textContent='Claim on '+dest.name;
+  }
 }
 
 /* ---------- TOKEN PICKER ---------- */
