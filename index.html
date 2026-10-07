@@ -88,6 +88,11 @@ nav.tabs button.on::after{content:"";position:absolute;left:14px;right:14px;bott
 .hd-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 .net{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);font-size:13px;font-weight:500}
 .net .dot{background:var(--aqua);box-shadow:0 0 8px var(--aqua)}
+button.net{cursor:pointer;color:inherit;font-family:inherit}
+button.net:hover{border-color:var(--aqua)}
+.net.main .dot{background:#F5A524;box-shadow:0 0 8px #F5A524}
+.net-banner{background:rgba(245,165,36,.12);border-bottom:1px solid rgba(245,165,36,.35);color:#8A5A00;font-size:13px;text-align:center;padding:8px 16px}
+.net-banner button{background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;padding:0}
 .btn{padding:9px 16px;border-radius:11px;font-weight:600;font-size:14px;transition:.16s;border:1px solid transparent}
 .btn-primary{background:var(--arc);color:#FFFFFF;box-shadow:0 2px 10px rgba(46,91,255,.28)}
 .btn-primary:hover{filter:brightness(1.07);transform:translateY(-1px)}
@@ -273,7 +278,7 @@ footer{border-top:1px solid var(--line-soft);margin-top:40px}
 
 @media (max-width:920px){
   .trade-grid{grid-template-columns:1fr}
-  .net{display:none}
+  .net{padding:6px 10px;font-size:12px}
   .hd{flex-wrap:wrap;height:auto;padding-top:12px;gap:12px}
   nav.tabs{order:5;width:100%;margin-left:0;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
   nav.tabs::-webkit-scrollbar{display:none}
@@ -315,12 +320,13 @@ footer{border-top:1px solid var(--line-soft);margin-top:40px}
   </div>
   <nav class="tabs" id="tabs"></nav>
   <div class="hd-right">
-    <div class="net"><span class="dot"></span> Arc Testnet</div>
+    <button class="net" id="netToggle" title="Switch network"><span class="dot"></span> <span id="netName">Arc Testnet</span></button>
     <div id="wallet-area"></div>
   </div>
 </div>
 </header>
 
+<div class="net-banner hide" id="netBanner"></div>
 <main class="wrap"><div id="view"></div></main>
 
 <footer><div class="wrap ft">
@@ -366,22 +372,66 @@ footer{border-top:1px solid var(--line-soft);margin-top:40px}
 <div class="toast-host" id="toasts"></div>
 
 <script>
-/* ============ Arc Testnet config ============ */
+/* ============ Network config (Arc Testnet / Arc Mainnet) ============ */
+/* Addresses from docs.arc.io: arc/references/contract-addresses + rpc-endpoints */
+const NETWORKS = {
+  testnet: {
+    id:'testnet', mainnet:false,
+    chainIdDec: 5042002,
+    name: 'Arc Testnet',
+    rpcFallbacks: ['https://rpc.testnet.arc.network','https://rpc.testnet.arc.io','https://rpc.quicknode.testnet.arc.io','https://rpc.drpc.testnet.arc.io','https://rpc.blockdaemon.testnet.arc.io'],
+    explorer: 'https://testnet.arcscan.app',
+    faucet: 'https://faucet.circle.com',
+    dex: '0xefa6efae5962fb59b90968f80b50841efdd0a806',
+    cctp: { messenger:'0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA', transmitter:'0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275', iris:'https://iris-api-sandbox.circle.com' },
+    tokens: { USDC:'0x3600000000000000000000000000000000000000', EURC:'0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a', USYC:'0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C', cirBTC:'0xf0c4a4ce82a5746abaad9425360ab04fbba432bf' }
+  },
+  mainnet: {
+    id:'mainnet', mainnet:true,
+    chainIdDec: 5042,
+    name: 'Arc Mainnet',
+    rpcFallbacks: ['https://rpc.mainnet.arc.io','https://rpc.quicknode.mainnet.arc.io','https://rpc.drpc.mainnet.arc.io','https://rpc.blockdaemon.mainnet.arc.io'],
+    explorer: 'https://explorer.arc.io',
+    faucet: null,
+    dex: null, // ValtoDEX not deployed on mainnet yet - trading stays disabled until set
+    cctp: { messenger:'0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d', transmitter:'0x81D40F21F12A8F0E3252Bccb954D722d4c464B64', iris:'https://iris-api.circle.com' },
+    tokens: { USDC:'0x3600000000000000000000000000000000000000', EURC:'0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1', USYC:'0x8a5D989Bbb96929F689B0200f435f53dA42bF490', cirBTC:'0x171A4217b86A807A64eB94757Db6849fb4bDbAA0' }
+  }
+};
+const NET_ID = (()=>{
+  const q = new URLSearchParams(location.search).get('net');
+  if(q==='mainnet'||q==='testnet') return q;
+  return loadLS('bb_net','testnet')==='mainnet' ? 'mainnet' : 'testnet';
+})();
+const NET = NETWORKS[NET_ID];
 const ARC = {
-  chainIdDec: 5042002,
-  chainIdHex: '0x' + (5042002).toString(16),
-  name: 'Arc Testnet',
-  rpc: 'https://rpc.testnet.arc.network',
-  rpcFallbacks: ['https://rpc.testnet.arc.network','https://rpc.quicknode.testnet.arc.network','https://rpc.drpc.testnet.arc.network','https://rpc.blockdaemon.testnet.arc.network'],
-  ws: 'wss://rpc.testnet.arc.network',
-  explorer: 'https://testnet.arcscan.app',
-  faucet: 'https://faucet.circle.com',
+  chainIdDec: NET.chainIdDec,
+  chainIdHex: '0x' + NET.chainIdDec.toString(16),
+  name: NET.name,
+  rpc: NET.rpcFallbacks[0],
+  rpcFallbacks: NET.rpcFallbacks,
+  explorer: NET.explorer,
+  faucet: NET.faucet,
   cctpDomain: 26
 };
+/* Mainnet is read-only until the ValtoDEX contract is deployed and audited there */
+const READ_ONLY = NET.mainnet;
+function readOnlyBlock(){
+  if(!READ_ONLY) return false;
+  toast('Arc Mainnet is read-only on Bitblance for now - switch to Testnet to trade','err');
+  return true;
+}
+function switchNetwork(){
+  const next = NET.mainnet ? 'testnet' : 'mainnet';
+  if(next==='mainnet' && !confirm('Switch to Arc Mainnet?\n\nMainnet uses real USDC. Bitblance is read-only there for now: balances only, no swaps, pools or bridging.')) return;
+  saveLS('bb_net', next);
+  const u = new URL(location.href); u.searchParams.delete('net');
+  location.href = u.toString();
+}
 
-/* ValtoDEX AMM router = deployed ValtoDEX AMM on Arc Testnet */
+/* ValtoDEX AMM router = deployed ValtoDEX AMM (per network, see NETWORKS) */
 const DEX = {
-  addr: '0xefa6efae5962fb59b90968f80b50841efdd0a806',
+  addr: NET.dex,
   sel: {
     poolCount: '0xf525cb68',
     pools:     '0xac4afa38',
@@ -402,7 +452,7 @@ const units = (amountStr, dec) => {
   return BigInt((i||'0') + (f+'0'.repeat(dec)).slice(0,dec));
 };
 const fromUnits = (bi, dec) => Number(bi) / Math.pow(10,dec);
-async function dexCall(data){ return await rpc('eth_call',[{to:DEX.addr, data}, 'latest']); }
+async function dexCall(data){ if(!DEX.addr) throw new Error('ValtoDEX is not deployed on '+ARC.name+' yet'); return await rpc('eth_call',[{to:DEX.addr, data}, 'latest']); }
 async function findPool(tokA, tokB){
   const cnt = parseInt(await dexCall(DEX.sel.poolCount) || '0x0', 16);
   for(let i=0;i<cnt;i++){
@@ -433,11 +483,11 @@ async function waitReceipt(hash, btn, label){
   throw new Error('timed out waiting for confirmation');
 }
 
-/* Circle CCTP V2 (testnet) - real cross-chain bridging */
+/* Circle CCTP V2 - real cross-chain bridging (addresses per network) */
 const CCTP = {
-  messenger: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA',
-  transmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275',
-  iris: 'https://iris-api-sandbox.circle.com',
+  messenger: NET.cctp.messenger,
+  transmitter: NET.cctp.transmitter,
+  iris: NET.cctp.iris,
   sel: { depositForBurn: '0x8e0250ee', receiveMessage: '0x57ecfd28' }
 };
 const EVM_CHAINS = {
@@ -449,11 +499,11 @@ const EVM_CHAINS = {
 };
 const encBytes = (hex) => { const h=hex.replace(/^0x/,''); const padded=h.padEnd(Math.ceil(h.length/64)*64,'0'); return pad(h.length/2)+padded; };
 
-/* Real Arc Testnet token contracts (from Arc docs) */
+/* Real Arc token contracts (from Arc docs, per network) */
 const TOKENS = [
-  {sym:'USDC', name:'USD Coin',        addr:'0x3600000000000000000000000000000000000000', dec:6, color:'#2775CA', price:1.00,  native:true,  peg:'USD'},
-  {sym:'EURC', name:'Euro Coin',       addr:'0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a', dec:6, color:'#4C6EF5', price:1.083, peg:'EUR'},
-  {sym:'USYC', name:'US Yield Coin',   addr:'0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C', dec:6, color:'#8B6DF0', price:1.094, peg:'USD', perm:true, apy:4.9}
+  {sym:'USDC', name:'USD Coin',        addr:NET.tokens.USDC, dec:6, color:'#2775CA', price:1.00,  native:true,  peg:'USD'},
+  {sym:'EURC', name:'Euro Coin',       addr:NET.tokens.EURC, dec:6, color:'#4C6EF5', price:1.083, peg:'EUR'},
+  {sym:'USYC', name:'US Yield Coin',   addr:NET.tokens.USYC, dec:6, color:'#8B6DF0', price:1.094, peg:'USD', perm:true, apy:4.9}
 ];
 const BRIDGE_CHAINS = [
   {name:'Ethereum Sepolia', short:'ETH', color:'#627EEA', domain:0},
@@ -462,7 +512,7 @@ const BRIDGE_CHAINS = [
   {name:'Avalanche Fuji',   short:'AVAX',color:'#E84142', domain:1},
   {name:'OP Sepolia',       short:'OP',  color:'#FF0420', domain:2}
 ];
-const ARC_CHAIN = {name:'Arc Testnet', short:'ARC', color:'#2E5BFF', domain:26, arc:true};
+const ARC_CHAIN = {name:ARC.name, short:'ARC', color:'#2E5BFF', domain:26, arc:true};
 const ALL_CHAINS = [ARC_CHAIN, ...BRIDGE_CHAINS];
 const FEE = 0.003; // 0.3% AMM fee (matches ValtoDEX FEE_BPS)
 
@@ -560,7 +610,7 @@ async function connect(){
     }
     if(!accs || !accs.length) throw new Error('No account returned by wallet');
     state.account = accs[0];
-    try{ await ensureArc(); }catch(eArc){ toast('Connected. Add Arc Testnet from the Faucet tab when ready.','info'); }
+    try{ await ensureArc(); }catch(eArc){ toast('Connected. Add '+ARC.name+' from the Faucet tab when ready.','info'); }
     toast('Wallet connected · '+short(state.account),'ok');
     render();
     refreshBalances();
@@ -593,7 +643,7 @@ async function ensureArc(){
           nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
           rpcUrls:ARC.rpcFallbacks, blockExplorerUrls:[ARC.explorer]
         }]});
-        toast('Arc Testnet added to wallet','ok');
+        toast(ARC.name+' added to wallet','ok');
       }catch(_){ toast('Could not add Arc network','err'); }
     }
   }
@@ -623,7 +673,20 @@ const TABS = [
   {id:'points',label:'Points', soon:true}
 ];
 
+function renderNet(){
+  const b=$('#netToggle'); if(!b) return;
+  $('#netName').textContent=ARC.name;
+  b.classList.toggle('main', NET.mainnet);
+  b.onclick=switchNetwork;
+  const bn=$('#netBanner');
+  if(NET.mainnet){
+    bn.classList.remove('hide');
+    bn.innerHTML='You are on <b>Arc Mainnet</b> (real USDC). Bitblance is read-only here for now. <button>Back to Testnet</button>';
+    bn.querySelector('button').onclick=switchNetwork;
+  } else bn.classList.add('hide');
+}
 function render(){
+  renderNet();
   renderTicker();
   renderTabs();
   renderWallet();
@@ -720,7 +783,7 @@ function viewTrade(){
 
   const info=el('div','card rail-card');
   info.innerHTML='<h3>Network</h3>';
-  [['Chain ID', ARC.chainIdDec],['Gas token','USDC'],['Finality','~0.48s · BFT'],['Router','ValtoDEX AMM'],['Fee tier','0.30%']].forEach(([k,v])=>{
+  [['Chain ID', ARC.chainIdDec],['Gas token','USDC'],['Finality','~0.48s · BFT'],['Router', DEX.addr?'ValtoDEX AMM':'not deployed yet'],['Fee tier','0.30%']].forEach(([k,v])=>{
     info.appendChild(el('div','stat',`<span class="k">${k}</span><span class="v">${v}</span>`));
   });
   rail.appendChild(info);
@@ -794,6 +857,7 @@ function swapPanel(){
   // action
   const btn=el('button','act-btn');
   if(!state.account){ btn.textContent='Connect Wallet'; btn.classList.add('warn'); btn.onclick=connect; }
+  else if(READ_ONLY){ btn.textContent='Read-only on '+ARC.name; btn.disabled=true; }
   else if(!q){ btn.textContent='Enter an amount'; btn.disabled=true; }
   else if(state.fromTok.perm || state.toTok.perm){
     btn.textContent='USYC requires allowlisting'; btn.classList.add('warn');
@@ -829,13 +893,14 @@ function updateSwapLive(){
   if(q&&bf){const pct=Math.min(95,Math.max(5,(q.rate/(state.fromTok.price/state.toTok.price))*50));bf.style.width=pct+'%';bn.style.left=pct+'%';}
   // re-enable button state without full render for smoothness
   const btn=$('.act-btn');
-  if(btn && state.account && q && !state.fromTok.perm && !state.toTok.perm){
+  if(btn && state.account && q && !READ_ONLY && !state.fromTok.perm && !state.toTok.perm){
     const balFrom=state.balances[state.fromTok.sym];
     if(balFrom!=null && parseFloat(state.fromAmt)>balFrom){btn.textContent='Insufficient '+state.fromTok.sym;btn.disabled=true;btn.classList.remove('warn');}
     else{btn.textContent=`Swap ${state.fromTok.sym} → ${state.toTok.sym}`;btn.disabled=false;btn.onclick=doSwap;}
   }
 }
 async function doSwap(){
+  if(readOnlyBlock()) return;
   const q=getQuote(); if(!q)return;
   if(!state.account){ toast('Connect your wallet first','err'); return; }
   const btn=$('.act-btn'); btn.disabled=true;
@@ -939,6 +1004,7 @@ function bridgePanel(){
 
   const btn=el('button','act-btn');
   if(!state.account){btn.textContent='Connect Wallet';btn.classList.add('warn');btn.onclick=connect;}
+  else if(READ_ONLY){btn.textContent='Read-only on '+ARC.name;btn.disabled=true;}
   else {btn.textContent='Bridge '+state.bridgeFrom.short+' \u2192 '+state.bridgeTo.short;btn.onclick=()=>doBridge(st);}
   p.appendChild(btn);
   return p;
@@ -970,6 +1036,7 @@ function renderNetList(filter){
 
 /* ---------- REAL CCTP BRIDGE ---------- */
 async function doBridge(st){
+  if(readOnlyBlock()) return;
   const v=$('#brAmt').value;
   if(!parseFloat(v)){toast('Enter an amount','err');return;}
   if(!state.account){toast('Connect your wallet first','err');return;}
@@ -1095,11 +1162,11 @@ function viewProfile(){
   const root=el('div');
   root.appendChild(el('div','page-head',
     `<div class="eyebrow">Portfolio</div><h1>Profile</h1>
-     <p>Your Arc Testnet stablecoin positions, activity and account overview.</p>`));
+     <p>Your ${ARC.name} stablecoin positions, activity and account overview.</p>`));
 
   if(!state.account){
     const e=el('div','card');
-    e.appendChild(connectEmpty('Connect to view your portfolio','Link a wallet to see live balances, positions and swap history on Arc Testnet.'));
+    e.appendChild(connectEmpty('Connect to view your portfolio','Link a wallet to see live balances, positions and swap history on '+ARC.name+'.'));
     root.appendChild(e); return root;
   }
 
@@ -1107,7 +1174,7 @@ function viewProfile(){
 
   const g=el('div','grid-3'); g.style.marginBottom='16px';
   g.innerHTML=`
-    <div class="metric"><div class="k">Portfolio value</div><div class="v">${fmtc(total)}</div><div class="d up">on Arc Testnet</div></div>
+    <div class="metric"><div class="k">Portfolio value</div><div class="v">${fmtc(total)}</div><div class="d up">on ${ARC.name}</div></div>
     <div class="metric"><div class="k">Native USDC (gas)</div><div class="v">${state.nativeBal!=null?fmt(state.nativeBal,4):'—'}</div><div class="d" style="color:var(--txt-3)">for transaction fees</div></div>
     <div class="metric"><div class="k">Assets held</div><div class="v">${TOKENS.filter(t=>state.balances[t.sym]>0).length}/${TOKENS.length}</div><div class="d" style="color:var(--txt-3)">stablecoins</div></div>`;
   root.appendChild(g);
@@ -1211,14 +1278,14 @@ function makeSelect(tokens,current,onPick){
 }
 
 /* ---------- POOLS ---------- */
-const TOKEN_META = (()=>{ const m={}; TOKENS.forEach(t=>m[t.addr.toLowerCase()]={sym:t.sym,dec:t.dec}); m['0xf0c4a4ce82a5746abaad9425360ab04fbba432bf']={sym:'cirBTC',dec:8}; return m; })();
+const TOKEN_META = (()=>{ const m={}; TOKENS.forEach(t=>m[t.addr.toLowerCase()]={sym:t.sym,dec:t.dec}); m[NET.tokens.cirBTC.toLowerCase()]={sym:'cirBTC',dec:8}; return m; })();
 function tokMeta(a){ return TOKEN_META[(a||'').toLowerCase()] || {sym:(a||'').slice(0,8)+'…',dec:18}; }
 
 function viewPools(){
   const root=el('div');
   root.appendChild(el('div','page-head',
     `<div class="eyebrow">Liquidity</div><h1>Pools</h1>
-     <p>Live ValtoDEX pools on Arc Testnet. Create a pair and seed it with liquidity so swaps can execute.</p>`));
+     <p>Live ValtoDEX pools on ${ARC.name}. Create a pair and seed it with liquidity so swaps can execute.</p>`));
   const grid=el('div','trade-grid');
 
   const listCard=el('div','card');
@@ -1245,7 +1312,8 @@ function viewPools(){
   mk.appendChild(el('div','info-strip',
     `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5B7CFF" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
      The first deposit sets the price. For USDC/EURC use a market-like ratio, e.g. 10 USDC + 9.2 EURC. Up to 4 MetaMask confirmations will appear — approve each.`));
-  const go=el('button','act-btn','Create / top up pool');
+  const go=el('button','act-btn',READ_ONLY?'Read-only on '+ARC.name:'Create / top up pool');
+  if(READ_ONLY) go.disabled=true;
   go.onclick=()=>createAndSeed(cfg, go, box);
   mk.appendChild(go);
   grid.appendChild(mk);
@@ -1256,6 +1324,7 @@ function viewPools(){
 }
 
 async function loadPools(box){
+  if(!DEX.addr){ box.innerHTML='ValtoDEX is not deployed on '+ARC.name+' yet.'; return; }
   try{
     const cnt=parseInt(await dexCall(DEX.sel.poolCount)||'0x0',16);
     if(!cnt){ box.innerHTML='No pools yet — create the first one on the right.'; return; }
@@ -1284,6 +1353,7 @@ async function ensureAllowance(token, amount, btn, stepLabel){
 }
 
 async function createAndSeed(cfg, btn, box){
+  if(readOnlyBlock()) return;
   if(!state.account){ toast('Connect your wallet first','err'); return; }
   if(cfg.a.sym===cfg.b.sym){ toast('Choose two different tokens','err'); return; }
   const vA=$('#lqA').value, vB=$('#lqB').value;
@@ -1338,32 +1408,35 @@ async function createAndSeed(cfg, btn, box){
 function viewFaucet(){
   const root=el('div');
   root.appendChild(el('div','page-head',
-    `<div class="eyebrow">Testnet resources</div><h1>Faucet</h1>
-     <p>Fund your wallet with Arc Testnet stablecoins to start trading. Everything here is test-only — no real value.</p>`));
+    (ARC.faucet?`<div class="eyebrow">Testnet resources</div><h1>Faucet</h1>
+     <p>Fund your wallet with Arc Testnet stablecoins to start trading. Everything here is test-only — no real value.</p>`
+    :`<div class="eyebrow">Mainnet</div><h1>Network setup</h1>
+     <p>Add ${ARC.name} to your wallet. Mainnet balances are real money.</p>`)));
   const grid=el('div','trade-grid');
 
   const card=el('div','card');
-  card.innerHTML='<h3 style="margin:0 0 14px;font-size:15px">Request testnet tokens</h3>';
-  [TOKENS[0],TOKENS[1]].forEach(t=>{
+  card.innerHTML=ARC.faucet?'<h3 style="margin:0 0 14px;font-size:15px">Request testnet tokens</h3>'
+    :'<h3 style="margin:0 0 14px;font-size:15px">No faucet on mainnet</h3><p style="color:var(--txt-2);font-size:13px;line-height:1.6;margin:0 0 14px">Arc Mainnet uses real USDC. Fund your wallet through an exchange or by bridging USDC to Arc. Switch to Testnet in the header to get free test tokens.</p>';
+  (ARC.faucet?[TOKENS[0],TOKENS[1]]:[]).forEach(t=>{
     const row=el('div','faucet-tok');
     row.innerHTML=`${ico(t,36)}<div><div style="font-weight:600">${t.sym}</div><div style="font-size:12px;color:var(--txt-3)">${t.name} · from Circle Faucet</div></div>
       <a class="go" href="${ARC.faucet}" target="_blank">Request <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M17 7H9M17 7v8"/></svg></a>`;
     card.appendChild(row);
   });
-  const addBtn=el('button','act-btn','Add Arc Testnet to wallet');
+  const addBtn=el('button','act-btn','Add '+ARC.name+' to wallet');
   addBtn.style.background='var(--panel-2)'; addBtn.style.color='var(--aqua)'; addBtn.style.border='1px solid var(--line)';
   addBtn.onclick=async()=>{
     if(!window.ethereum){toast('No wallet detected - install MetaMask first','err');return;}
     toast('Approve the network request in MetaMask (fox icon, top right)','info');
     await ensureArc();
-    try{ const cid=await window.ethereum.request({method:'eth_chainId'}); if(cid===ARC.chainIdHex){ toast('Arc Testnet is active in your wallet','ok'); } }catch(e){}
+    try{ const cid=await window.ethereum.request({method:'eth_chainId'}); if(cid===ARC.chainIdHex){ toast(ARC.name+' is active in your wallet','ok'); } }catch(e){}
   };
   card.appendChild(addBtn);
   grid.appendChild(card);
 
   const steps=el('div','card');
-  steps.innerHTML='<h3 style="margin:0 0 16px;font-size:15px">Get started in 3 steps</h3>';
-  [['1','Add the network','Add Arc Testnet to MetaMask or Rabby — Chain ID '+ARC.chainIdDec+', gas paid in USDC.'],
+  steps.innerHTML='<h3 style="margin:0 0 16px;font-size:15px">'+(ARC.faucet?'Get started in 3 steps':'Get started')+'</h3>';
+  if(ARC.faucet){ [['1','Add the network','Add Arc Testnet to MetaMask or Rabby — Chain ID '+ARC.chainIdDec+', gas paid in USDC.'],
    ['2','Claim test USDC','Open the Circle Faucet, pick Arc Testnet, and request USDC (also covers gas).'],
    ['3','Connect & trade','Connect your wallet on Bitblance and swap at the peg.']].forEach(([n,h,b])=>{
     steps.appendChild(el('div','step',`<div class="num">${n}</div><div class="body"><h4>${h}</h4><p>${b}</p></div>`));
@@ -1371,7 +1444,8 @@ function viewFaucet(){
   const link=el('a',''); link.href=ARC.faucet; link.target='_blank';
   link.style.cssText='display:inline-flex;gap:6px;align-items:center;color:var(--aqua);font-size:13px;font-weight:600';
   link.innerHTML='Open Circle Faucet <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M17 7H9M17 7v8"/></svg>';
-  steps.appendChild(link);
+  steps.appendChild(link); }
+  else { steps.appendChild(el('div','step',`<div class="num">1</div><div class="body"><h4>Add the network</h4><p>Add ${ARC.name} to MetaMask or Rabby — Chain ID ${ARC.chainIdDec}, gas paid in USDC.</p></div>`)); }
   grid.appendChild(steps);
   root.appendChild(grid);
   return root;
@@ -1386,7 +1460,7 @@ function viewAI(){
      <p>An assistant for stablecoin FX on Arc — routing, network facts and portfolio questions.</p>`));
   const w=el('div','ai-wrap');
   w.innerHTML=`<div class="ai-head"><div class="ai-orb"></div>
-     <div><div style="font-weight:600;font-family:Space Grotesk">Blance</div><div style="font-size:12px;color:var(--txt-3)">Stablecoin copilot · Arc Testnet</div></div>
+     <div><div style="font-weight:600;font-family:Space Grotesk">Blance</div><div style="font-size:12px;color:var(--txt-3)">Stablecoin copilot · ${ARC.name}</div></div>
      <div style="margin-left:auto;font-size:11px;color:var(--aqua);display:flex;align-items:center;gap:6px"><span class="dot" style="background:var(--aqua);width:7px;height:7px"></span>online</div></div>`;
   const body=el('div','ai-body'); body.id='aiBody';
   aiHistory.forEach(m=>body.appendChild(el('div','msg '+m.role,m.text)));
@@ -1434,7 +1508,7 @@ function blanceReply(q){
     return `Arc pays gas in <b>USDC</b> (not ETH). The native token uses 18 decimals internally but displays as 6-decimal USDC. Min base fee is ~20 Gwei and EIP-1559 is supported, so a swap costs a fraction of a cent. You just need a little USDC in your wallet from the Faucet.`;
   }
   if(/portfolio|balance|holding|my /.test(t)){
-    if(!state.account) return `Connect your wallet first and I'll read your live Arc Testnet balances — I can then break down your portfolio by asset and value.`;
+    if(!state.account) return `Connect your wallet first and I'll read your live ${ARC.name} balances — I can then break down your portfolio by asset and value.`;
     let total=0,lines=[]; TOKENS.forEach(k=>{const b=state.balances[k.sym]||0;if(b>0){total+=b*k.price;lines.push(`${fmt(b,2)} ${k.sym}`)}});
     return total>0?`Your portfolio is worth <b>${fmtc(total)}</b> across: ${lines.join(', ')}. Native USDC for gas: ${fmt(state.nativeBal||0,4)}.`:`Your wallet is connected but I don't see any stablecoin balances yet. Grab some test USDC from the Faucet tab to get going.`;
   }
