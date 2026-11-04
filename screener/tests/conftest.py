@@ -100,7 +100,39 @@ def build_fixtures() -> dict[str, object]:
         "freshdao.eth": [{"id": "f1", "title": "FP-1", "state": "closed", "created": ts(20), "end": ts(13), "votes": 25, "scores_total": 1000}],
     }
 
+    tt_projects = {"data": [
+        {"project_id": "solid-finance", "name": "Solid Finance", "symbol": "SOL1", "coingecko_id": "solid-finance", "market_sector": "Lending"},
+        {"project_id": "fresh", "name": "Fresh Protocol", "symbol": "FRSH"},
+        {"project_id": "other-rug", "name": "Other Rug", "symbol": "RUG"},
+        {"project_id": "another-rug", "name": "Another Rug", "symbol": "RUG"},
+    ]}
+    tt_metrics = {"data": [{"metric_id": m} for m in ("fees", "revenue", "earnings", "active_users_daily", "active_users_monthly", "transaction_count", "token_holders", "tvl", "user_dau")]}
+
+    def tt_series(pid, base, growth):
+        # 61 nap: előző 30 nap `base`, utolsó 30 nap `base*growth`
+        rows = []
+        for d in range(61, -1, -1):
+            val = base * (growth if d < 30 else 1.0)
+            rows.append({"timestamp": (datetime(2026, 11, 4, tzinfo=timezone.utc) - timedelta(days=d)).strftime("%Y-%m-%dT00:00:00.000Z"), "project_id": pid, "value": val})
+        return rows
+
+    tt_bulk = {
+        "fees": {"data": tt_series("solid-finance", 150_000, 1.2) + tt_series("fresh", 10_000, 2.0) + tt_series("nobody", 5, 1)},
+        "revenue": {"data": tt_series("solid-finance", 70_000, 1.1)},
+        "active_users_daily": {"data": tt_series("solid-finance", 24_000, 1.05) + tt_series("fresh", 1_500, 1.5)},
+        "active_users_monthly": {"data": tt_series("fresh", 30_000, 1.0)},
+        "transaction_count": {"data": tt_series("solid-finance", 3_000, 1.0)},
+        "token_holders": {"data": tt_series("solid-finance", 50_000, 1.02)},
+    }
+    # projektenkénti végpont: hosszú formátum
+    tt_project_fresh = {"data": [dict(r, metric_id="fees") for r in tt_series("fresh", 10_000, 2.0)] + [dict(r, metric_id="active_users_daily") for r in tt_series("fresh", 1_500, 1.5)]}
+
     fx = {
+        "_tt_bulk": tt_bulk,
+        "https://api.tokenterminal.com/v2/projects": tt_projects,
+        "https://api.tokenterminal.com/v2/metrics": tt_metrics,
+        "https://api.tokenterminal.com/v2/projects/fresh/metrics": tt_project_fresh,
+        "https://api.tokenterminal.com/v2/projects/solid-finance/metrics": {"data": []},
         "_dune_results": dune_results,
         "_snapshot_spaces": snapshot_spaces,
         "_snapshot_proposals": snapshot_proposals,
@@ -150,6 +182,14 @@ class FakeTransport:
             return 200, {"ok": True}, {}
         if url == "https://hub.snapshot.org/graphql":
             return self._snapshot(json or {})
+        if url.startswith("https://api.tokenterminal.com/"):
+            if (headers or {}).get("Authorization") != "Bearer tt-test-key":
+                return 401, {"message": "unauthorized"}, {}
+            if url.startswith("https://api.tokenterminal.com/v2/metrics/"):
+                mid = url.rsplit("/", 1)[1]
+                if mid not in self.fixtures["_tt_bulk"]:
+                    return 404, {"message": "unknown metric"}, {}
+                return 200, _json.loads(_json.dumps(self.fixtures["_tt_bulk"][mid])), {}
         if url.startswith("https://api.dune.com/"):
             if not (headers or {}).get("X-Dune-API-Key"):
                 return 401, {"error": "missing key"}, {}
@@ -201,6 +241,8 @@ def cfg(tmp_path, monkeypatch):
              "metrics": {"users_30d": "active_users_30d", "revenue_30d": "revenue_usd_30d", "txs_30d": "tx_count_30d", "whale_share": "whale_share"}},
         ]},
     })
+    data["tokenterminal"] = {"enabled": True, "mode": "bulk", "window_days": 30, "projects_limit": 100, "min_interval": 0, "metrics": {}, "project_ids": {}}
     cfg = Config(data=data, base_dir=tmp_path)
     cfg.secrets.dune_api_key = "dune-test-key"
+    cfg.secrets.tokenterminal_api_key = "tt-test-key"
     return cfg

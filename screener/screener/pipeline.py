@@ -10,7 +10,7 @@ from . import db
 from .config import Config
 from .http import Http
 from .scoring import ProjectData, score_project
-from .sources import coingecko, defillama, dune, github, snapshot
+from .sources import coingecko, defillama, dune, github, snapshot, tokenterminal
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class Clients:
         self.telegram = Http("telegram", min_interval=0.5, **kw)
         self.dune = Http("dune", min_interval=1.0, **kw)
         self.snapshot = Http("snapshot", min_interval=float((cfg.data.get("snapshot") or {}).get("min_interval", 1.0)), **kw)
+        self.tokenterminal = Http("tokenterminal", min_interval=float((cfg.data.get("tokenterminal") or {}).get("min_interval", 0.5)), **kw)
 
 
 def select_universe(protocols: list[dict[str, Any]], cfg: Config) -> list[dict[str, Any]]:
@@ -65,7 +66,7 @@ def fetch_all(conn: sqlite3.Connection, cfg: Config, clients: Clients, day: str 
     """Minden forrás lekérése és mentése a mai pillanatképbe."""
     day = day or db.today()
     u = cfg["universe"]
-    stats = {"projects": 0, "markets": 0, "details": 0, "github": 0, "hacks": 0, "dune": 0, "snapshot": 0}
+    stats = {"projects": 0, "markets": 0, "details": 0, "github": 0, "hacks": 0, "dune": 0, "snapshot": 0, "tokenterminal": 0}
 
     protocols = defillama.fetch_protocols(clients.llama)
     universe = select_universe(protocols, cfg)
@@ -186,7 +187,77 @@ def fetch_all(conn: sqlite3.Connection, cfg: Config, clients: Clients, day: str 
 
     stats["dune"] = fetch_dune(conn, cfg, clients, ids, day)
     stats["snapshot"] = fetch_snapshot(conn, cfg, clients, day)
+    stats["tokenterminal"] = fetch_tokenterminal(conn, cfg, clients, ids, day)
     return stats
+
+
+def fetch_tokenterminal(conn: sqlite3.Connection, cfg: Config, clients: Clients, ids: dict[int, dict], day: str) -> int:
+    """Token Terminal: projektek illesztése (cache-elve), majd mutatók tömegesen vagy projektenként."""
+    tcfg = cfg.data.get("tokenterminal") or {}
+    if not tcfg.get("enabled"):
+        return 0
+    key = cfg.secrets.tokenterminal_api_key
+    if not key:
+        log.warning("tokenterminal: TOKENTERMINAL_API_KEY hiányzik, kihagyva")
+        return 0
+    http = clients.tokenterminal
+    metrics = {**tokenterminal.DEFAULT_METRICS, **(tcfg.get("metrics") or {})}
+    metrics = {k: str(v) for k, v in metrics.items() if v}  # false / üres -> kikapcsolva
+    metrics = tokenterminal.validate_metrics(metrics, tokenterminal.fetch_metric_ids(http, key))
+    if not metrics:
+        return 0
+    overrides = dict(tcfg.get("project_ids") or {})
+    for slug, ov in (cfg.data.get("overrides") or {}).items():
+        if isinstance(ov, dict) and ov.get("tokenterminal_id"):
+            overrides[slug] = ov["tokenterminal_id"]
+    # illesztés: cache-ből, különben a projektlistából
+    slug_to_pid = {p["slug"]: pid for pid, p in ids.items()}
+    mapping: dict[str, str] = {}
+    unresolved: list[dict] = []
+    for pid, p in ids.items():
+        extra = db.row_json(conn.execute("SELECT extra FROM projects WHERE id=?", (pid,)).fetchone(), "extra", {}) or {}
+        if overrides.get(p["slug"]):
+            mapping[p["slug"]] = overrides[p["slug"]]
+        elif extra.get("tt_project_id"):
+            mapping[p["slug"]] = extra["tt_project_id"]
+        elif extra.get("tt_checked_at") and extra["tt_checked_at"] >= (date.fromisoformat(day) - timedelta(days=30)).isoformat():
+            continue
+        else:
+            unresolved.append(p)
+    if unresolved:
+        tt_projects = tokenterminal.fetch_projects(http, key)
+        if tt_projects:
+            found = tokenterminal.match_projects(tt_projects, unresolved)
+            for p in unresolved:
+                pid = slug_to_pid[p["slug"]]
+                tid = found.get(p["slug"])
+                db.update_project_extra(conn, pid, {"tt_project_id": tid, "tt_checked_at": day})
+                if tid:
+                    mapping[p["slug"]] = tid
+            conn.commit()
+    if not mapping:
+        return 0
+    window = int(tcfg.get("window_days", 30))
+    results: dict[str, dict[str, Any]] = {}
+    if str(tcfg.get("mode", "bulk")) == "bulk":
+        results = tokenterminal.fetch_bulk(http, key, metrics, set(mapping.values()), window, date.fromisoformat(day))
+    else:
+        limit = int(tcfg.get("projects_limit", 100))
+        ordered = sorted(mapping.items(), key=lambda kv: -(ids[slug_to_pid[kv[0]]].get("tvl") or 0))
+        for slug, tid in ordered[:limit]:
+            r = tokenterminal.fetch_project(http, key, tid, metrics, window, date.fromisoformat(day))
+            if r:
+                results[tid] = r
+    n = 0
+    for slug, tid in mapping.items():
+        r = results.get(tid)
+        if not r:
+            continue
+        db.upsert_metrics(conn, slug_to_pid[slug], day, "tokenterminal", r)
+        n += 1
+    conn.commit()
+    log.info("tokenterminal: %d projekt illesztve, %d kapott adatot", len(mapping), n)
+    return n
 
 
 def fetch_dune(conn: sqlite3.Connection, cfg: Config, clients: Clients, ids: dict[int, dict], day: str) -> int:
@@ -281,13 +352,23 @@ def build_project_data(conn: sqlite3.Connection, cfg: Config, project: sqlite3.R
     hacks = [{"day": h["day"], "amount_usd": h["amount_usd"]} for h in db.hacks_for(conn, project["slug"])]
     dune_m = db.latest_metrics(conn, project["id"], "dune", day, max_age_days=int((cfg.data.get("dune") or {}).get("max_age_hours", 36) / 24) + 7)
     gov = db.latest_metrics(conn, project["id"], "snapshot", day, max_age_days=30)
+    tt = db.latest_metrics(conn, project["id"], "tokenterminal", day, max_age_days=7)
 
     def num(v: Any) -> float | None:
         return v if isinstance(v, (int, float)) else None
 
-    users_24h = snap["users_24h"] if snap["users_24h"] is not None else num(dune_m.get("users_24h"))
-    revenue_30d = snap["revenue_30d"] if snap["revenue_30d"] is not None else num(dune_m.get("revenue_30d"))
-    fees_30d = snap["fees_30d"] if snap["fees_30d"] is not None else num(dune_m.get("fees_30d"))
+    def first(*vals: Any) -> float | None:
+        for v in vals:
+            if num(v) is not None:
+                return num(v)
+        return None
+
+    users_24h = first(snap["users_24h"], tt.get("users_daily_avg_30d"), dune_m.get("users_24h"))
+    revenue_30d = first(snap["revenue_30d"], tt.get("revenue_30d"), dune_m.get("revenue_30d"))
+    fees_30d = first(snap["fees_30d"], tt.get("fees_30d"), dune_m.get("fees_30d"))
+    fees_change_30d = first(snap["fees_change_30d"], tt.get("fees_change_30d"))
+    if users_change is None:
+        users_change = first(tt.get("users_daily_change_30d"))
     commits = dev["commits_90d"] if dev else None
     contributors = dev["contributors_90d"] if dev else None
     last_push = dev["last_push"] if dev else None
@@ -298,8 +379,8 @@ def build_project_data(conn: sqlite3.Connection, cfg: Config, project: sqlite3.R
     return ProjectData(
         slug=project["slug"], name=project["name"],
         tvl=snap["tvl"], tvl_change_7d=snap["tvl_change_7d"], tvl_change_30d=snap["tvl_change_30d"],
-        fees_30d=fees_30d, fees_change_30d=snap["fees_change_30d"], revenue_30d=revenue_30d,
-        users_24h=users_24h, users_30d=num(dune_m.get("users_30d")), users_change_30d=users_change,
+        fees_30d=fees_30d, fees_change_30d=fees_change_30d, revenue_30d=revenue_30d,
+        users_24h=users_24h, users_30d=first(dune_m.get("users_30d"), tt.get("users_monthly")), users_change_30d=users_change,
         price_change_30d=snap["price_change_30d"],
         gov_proposals_90d=int(gov["proposals_90d"]) if num(gov.get("proposals_90d")) is not None else None,
         gov_avg_voters_90d=num(gov.get("avg_voters_90d")),

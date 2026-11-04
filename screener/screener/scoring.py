@@ -151,6 +151,7 @@ def score_usage(p: ProjectData) -> tuple[float | None, float, dict]:
         if p.users_24h is not None or p.users_30d is None
         else ("users_30d", log_scale(p.users_30d, 1_000, 1_000_000), 10),
         ("revenue_30d", log_scale(p.revenue_30d, 10_000, 5_000_000), 5),
+        ("users_trend_30d", scale(p.users_change_30d, -40, 60), 8),
         ("fundamentals_vs_price", scale(divergence, -80, 40), 10),
     ]
     return weighted(parts)

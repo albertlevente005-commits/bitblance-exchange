@@ -105,3 +105,21 @@ execute_if_stale = false
 # match_by = "slug"               # slug | symbol | gecko_id | name
 # match_column = "protocol"
 # metrics = { users_30d = "active_users_30d", revenue_30d = "revenue_usd_30d", txs_30d = "tx_count_30d" }
+
+[tokenterminal]
+# Token Terminal API (fizetős csomagban elérhető API-kulcs, Bearer): TOKENTERMINAL_API_KEY a .env-ben.
+# Szabványosított díj / bevétel / DAU-MAU / tranzakció / holder adatok; ahol a DefiLlama-nál hiányzik, ezek pótolják.
+enabled = false
+# bulk: metrikánként egy hívás az összes projektre (kevés hívás, nagy válasz)
+# per_project: projektenként egy hívás, legfeljebb projects_limit projektre (TVL szerint)
+mode = "bulk"
+window_days = 30
+projects_limit = 100
+min_interval = 0.5
+# Metrika-azonosítók felülírása, ha a Token Terminal másképp nevezi őket (a /v2/metrics lista alapján a futás figyelmeztet).
+# Egy mutató kikapcsolása: fees = false
+[tokenterminal.metrics]
+# users_daily = "user_dau"
+# Kézi projekt-illesztés: saját DefiLlama slug -> Token Terminal project_id
+[tokenterminal.project_ids]
+# "uniswap" = "uniswap"
