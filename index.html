@@ -527,7 +527,7 @@ function dexNotice(){
 async function findPool(tokA, tokB){
   const cnt = parseInt(await dexCall(DEX.sel.poolCount) || '0x0', 16);
   for(let i=0;i<cnt;i++){
-    const raw = (await dexCall(DEX.sel.pools + pad(i)) || '').replace(/^0x/,'');
+    const raw = (await dexCall(DEX.sel.pools + pad(i)) || '').replace(/^0x/,'').toLowerCase();
     const w = k => raw.slice(k*64,(k+1)*64);
     if(!w(0)) continue;
     const a = '0x'+w(0).slice(24), b = '0x'+w(1).slice(24);
@@ -586,7 +586,8 @@ let state = {
   bridgeTo: ARC_CHAIN,
   pickingNet:null,
   picking:null,
-  slippageBps: clampSlip(loadLS('bb_slippage_bps', 50))
+  slippageBps: clampSlip(loadLS('bb_slippage_bps', 50)),
+  onchainQuote:null   // last real AMM quote for the current amount / pair
 };
 
 /* ============ Utils ============ */
@@ -745,12 +746,45 @@ async function sendTx(to, data){
 function getQuote(){
   const a = parseFloat(state.fromAmt);
   if(!a || a<=0) return null;
-  const rate = state.fromTok.price / state.toTok.price;
-  const out = a * rate * (1 - FEE);
-  const usdIn = a * state.fromTok.price;
-  const usdOut = out * state.toTok.price;
-  return { rate, out, usdIn, usdOut, fee:a*state.fromTok.price*FEE,
-           minReceived: out*(10000-state.slippageBps)/10000, impact: Math.min(a/500000*100, 0.42) };
+  const refRate = state.fromTok.price / state.toTok.price;
+  const oq = state.onchainQuote;
+  const live = oq && oq.out>0 && oq.amt===state.fromAmt && oq.from===state.fromTok.sym && oq.to===state.toTok.sym;
+  if(live){
+    // real AMM output: rate and price impact come from the pool, min received uses the user's max. slippage (same as doSwap)
+    const out = oq.out, rate = out/a;
+    const impact = Math.max(0, (1 - (rate/(1-FEE))/refRate)*100);
+    return { rate, out, usdIn:a*state.fromTok.price, usdOut:out*state.toTok.price, fee:a*state.fromTok.price*FEE,
+             minReceived: out*(10000-state.slippageBps)/10000, impact, source:'pool', poolId:oq.pool };
+  }
+  const out = a * refRate * (1 - FEE);
+  return { rate:refRate, out, usdIn:a*state.fromTok.price, usdOut:out*state.toTok.price, fee:a*state.fromTok.price*FEE,
+           minReceived: out*(10000-state.slippageBps)/10000, impact: 0, source: (oq && oq.none && oq.from===state.fromTok.sym && oq.to===state.toTok.sym) ? 'nopool' : 'reference' };
+}
+let quoteSeq=0, quoteTimer=null;
+function scheduleQuote(){ clearTimeout(quoteTimer); quoteTimer=setTimeout(refreshOnchainQuote, 350); }
+async function refreshOnchainQuote(){
+  const seq=++quoteSeq;
+  const a=parseFloat(state.fromAmt);
+  if(!a || a<=0 || !DEX.live || state.fromTok.perm || state.toTok.perm){ state.onchainQuote=null; return; }
+  const from=state.fromTok, to=state.toTok, amt=state.fromAmt;
+  try{
+    const pool = await findPool(from.addr, to.addr);
+    if(seq!==quoteSeq) return;
+    if(!pool){ state.onchainQuote={none:true, from:from.sym, to:to.sym}; updateSwapLive(); return; }
+    const qRaw = await dexCall(DEX.sel.getQuote + pad(pool.id) + pad(from.addr) + pad(units(amt, from.dec)));
+    if(seq!==quoteSeq) return;
+    state.onchainQuote = {pool:pool.id, out:fromUnits(BigInt(qRaw||'0x0'), to.dec), amt, from:from.sym, to:to.sym};
+    updateSwapLive();
+  }catch(e){ if(seq===quoteSeq) state.onchainQuote=null; }
+}
+/* Live EUR/USD reference rate (ECB data via frankfurter.app) so the EURC preview is not a stale constant */
+async function refreshFx(){
+  try{
+    const r=await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD',{cache:'no-store'});
+    const j=await r.json(); const v=j&&j.rates&&Number(j.rates.USD);
+    const eurc=TOKENS.find(t=>t.sym==='EURC');
+    if(eurc && v>0.5 && v<2){ eurc.price=v; renderTicker(); updateSwapLive(); }
+  }catch(e){}
 }
 
 /* ============ Views ============ */
@@ -783,14 +817,14 @@ function render(){
 function renderTicker(){
   const t = $('#ticker');
   const items = TOKENS.map(tk=>{
-    const ch = tk.sym==='USDC'?0.01: tk.sym==='EURC'?-0.18:0.06;
-    return `<span class="tk"><span class="dot" style="background:${tk.color}"></span><span class="sym">${tk.sym}</span><span class="px mono">${fmtc(tk.price)}</span><span class="ch mono ${ch>=0?'up':'down'}">${ch>=0?'+':''}${ch.toFixed(2)}%</span></span>`;
+    return `<span class="tk"><span class="dot" style="background:${tk.color}"></span><span class="sym">${tk.sym}</span><span class="px mono">${fmtc(tk.price)}</span><span class="ch mono" style="color:var(--txt-3)">${tk.peg} peg</span></span>`;
   });
   const extra = [
-    `<span class="tk"><span class="sym">Arc TVL</span><span class="px mono">$48.2M</span></span>`,
-    `<span class="tk"><span class="sym">24h Vol</span><span class="px mono">$6.41M</span></span>`,
+    `<span class="tk"><span class="sym">Network</span><span class="px mono">${ARC.label}</span></span>`,
+    `<span class="tk"><span class="sym">Chain ID</span><span class="px mono">${ARC.chainIdDec}</span></span>`,
     `<span class="tk"><span class="sym">Block</span><span class="px mono">~0.5s</span></span>`,
-    `<span class="tk"><span class="sym">USYC APY</span><span class="px mono up">4.90%</span></span>`
+    `<span class="tk"><span class="sym">Gas</span><span class="px mono">USDC</span></span>`,
+    `<span class="tk"><span class="sym">USYC APY</span><span class="px mono up">~${TOKENS[2].apy.toFixed(1)}%</span></span>`
   ];
   const all=[...items,...extra];
   t.innerHTML = [...all,...all].join('');
@@ -852,10 +886,10 @@ function viewTrade(){
   const mkt=el('div','card rail-card');
   mkt.innerHTML='<h3>Stablecoin markets</h3>';
   TOKENS.forEach(t=>{
-    const ch = t.sym==='USDC'?0.01: t.sym==='EURC'?-0.18:0.06;
+    const bal=state.balances[t.sym];
     mkt.appendChild(el('div','mkt-row',
       `${ico(t,30)}<div><div class="nm">${t.sym}</div><div class="fn">${t.name}</div></div>
-       <div class="px"><div class="p mono">${fmtc(t.price)}</div><div class="c mono ${ch>=0?'up':'down'}">${ch>=0?'+':''}${ch}%</div></div>`));
+       <div class="px"><div class="p mono">${fmtc(t.price)}</div><div class="c mono" style="color:var(--txt-3)">${bal!=null?fmt(bal)+' held':t.peg+' peg'}</div></div>`));
   });
   rail.appendChild(mkt);
 
@@ -883,7 +917,7 @@ function swapPanel(){
     <span class="bal">Balance: <b class="mono">${balFrom!=null?fmt(balFrom):'—'}</b>${balFrom?'<span class="max">MAX</span>':''}</span></div>`;
   const frow=el('div','field-row');
   const inp=el('input','amt'); inp.placeholder='0.0'; inp.value=state.fromAmt; inp.inputMode='decimal';
-  inp.oninput=e=>{state.fromAmt=e.target.value.replace(/[^0-9.]/g,'');updateSwapLive()};
+  inp.oninput=e=>{state.fromAmt=e.target.value.replace(/[^0-9.]/g,'');updateSwapLive();scheduleQuote()};
   const tb=el('button','tok-btn',`${ico(state.fromTok)} ${state.fromTok.sym} <span class="chev">▾</span>`);
   tb.onclick=()=>openTokenPicker('from');
   frow.appendChild(inp); frow.appendChild(tb);
@@ -947,6 +981,7 @@ function swapPanel(){
   p.appendChild(btn);
 
   if(!DEX.live){ p.appendChild(el('div','info-strip',dexNotice())); }
+  if(q) scheduleQuote();
   if(state.fromTok.perm||state.toTok.perm){
     p.appendChild(el('div','info-strip',
       `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5B7CFF" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
@@ -975,10 +1010,10 @@ function quoteRows(q){
   if(!q) return '';
   return `
     <div class="qrow"><span class="k">Rate</span><span class="v">1 ${state.fromTok.sym} = ${fmt(q.rate,4)} ${state.toTok.sym}</span></div>
-    <div class="qrow"><span class="k">Price impact</span><span class="v good">${q.impact.toFixed(2)}%</span></div>
+    <div class="qrow"><span class="k">Price impact</span><span class="v ${q.impact>1?'':'good'}">${q.source==='pool'?q.impact.toFixed(2)+'%':'—'}</span></div>
     <div class="qrow"><span class="k">AMM fee (0.30%)</span><span class="v">${fmtc(q.fee)}</span></div>
     <div class="qrow"><span class="k">Min. received (${state.slippageBps/100}% slippage)</span><span class="v">${fmt(q.minReceived,4)} ${state.toTok.sym}</span></div>
-    <div class="qrow"><span class="k">Route</span><span class="route-chip"><span class="dot" style="background:var(--aqua)"></span>ValtoDEX AMM</span></div>`;
+    <div class="qrow"><span class="k">Route</span><span class="route-chip"><span class="dot" style="background:${q.source==='pool'?'var(--aqua)':'var(--gold)'}"></span>${q.source==='pool'?'ValtoDEX pool #'+q.poolId:(q.source==='nopool'?'No pool yet · reference rate':(DEX.live?'Reference rate · fetching pool quote':'Reference rate'))}</span></div>`;
 }
 function updateSwapLive(){
   const q=getQuote();
@@ -1044,8 +1079,8 @@ async function doSwap(){
     btn.textContent='Settling on Arc…';
     await waitReceipt(txHash, btn, 'Settling on Arc…');
     toast('Swapped '+fmt(state.fromAmt,2)+' '+from.sym+' → '+fmt(fromUnits(outUnits,to.dec),4)+' '+to.sym,'ok');
-    toast('Tx: '+txHash.slice(0,10)+'… view on '+ARC.explorerName,'info');
-    state.fromAmt='';
+    toast('Tx: '+txHash.slice(0,10)+'… <a href="'+ARC.explorer+'/tx/'+txHash+'" target="_blank" style="color:var(--aqua)">view on '+ARC.explorerName+'</a>','info');
+    state.fromAmt=''; state.onchainQuote=null;
     await refreshBalances();
     render();
   }catch(e){
@@ -1145,17 +1180,22 @@ async function doBridge(st){
     const code = await rpc('eth_getCode',[CCTP.messenger,'latest']);
     if(!code || code==='0x'){ throw new Error('CCTP TokenMessenger not found on Arc at the expected address'); }
     const amt=units(v,6);
+    btn.textContent='Quoting Circle fee\u2026';
+    const feeQ=await cctpFee(ARC.cctpDomain, dest.domain, amt);
+    if(feeQ.fee>=amt) throw new Error('amount too small to cover the Circle transfer fee ('+fmt(fromUnits(feeQ.fee,6),4)+' USDC)');
+    st.innerHTML='Circle transfer fee: <span class="mono">'+(feeQ.known?fmt(fromUnits(feeQ.fee,6),4)+' USDC ('+feeQ.bps+' bps)':'0 USDC')+'</span>';
     btn.textContent='Approve USDC\u2026';
     toast('If asked, approve exactly '+fmt(v,2)+' USDC for CCTP in MetaMask','info');
     await approveExact(TOKENS[0], CCTP.messenger, amt, btn, 'Approving\u2026');
     toast('Step 2: confirm the burn (depositForBurn) in MetaMask','info');
     btn.textContent='Confirm burn in MetaMask\u2026';
-    const data = CCTP.sel.depositForBurn + pad(amt) + pad(dest.domain) + pad(state.account) + pad(TOKENS[0].addr) + pad(0) + pad(0) + pad(2000);
+    // depositForBurn(amount, destinationDomain, mintRecipient, burnToken, destinationCaller=0, maxFee, minFinalityThreshold=2000 (standard transfer))
+    const data = CCTP.sel.depositForBurn + pad(amt) + pad(dest.domain) + pad(state.account) + pad(TOKENS[0].addr) + pad(0) + pad(feeQ.fee) + pad(2000);
     const btx=await sendTx(CCTP.messenger, data);
     btn.textContent='Burning on Arc\u2026';
     await waitReceipt(btx,btn,'Burning on Arc\u2026');
     toast('Burned '+fmt(v,2)+' USDC on Arc - waiting for Circle attestation','ok');
-    st.innerHTML='\ud83d\udd25 Burn tx: <span class="mono">'+btx.slice(0,14)+'\u2026</span><br>\u23f3 Waiting for Circle attestation (usually 15-60s)\u2026';
+    st.innerHTML='\ud83d\udd25 Burn tx: <a class="mono" href="'+ARC.explorer+'/tx/'+btx+'" target="_blank" style="color:var(--aqua)">'+btx.slice(0,14)+'\u2026</a><br>\u23f3 Waiting for Circle attestation (usually under a minute)\u2026';
     btn.textContent='Waiting for attestation\u2026';
     const m = await pollAttestation(btx, btn);
     st.innerHTML='\u2705 Attestation ready. Claim your USDC on '+dest.name+'. You need a little '+dc.sym+' gas there.';
@@ -1168,6 +1208,20 @@ async function doBridge(st){
     else toast('Bridge failed: '+msg,'err');
     btn.disabled=false; render();
   }
+}
+/* Circle's live fee quote for a standard (finality threshold 2000) CCTP V2 transfer; minimumFee is in bps of the amount */
+async function cctpFee(srcDomain, destDomain, amountUnits){
+  try{
+    const r=await fetch(CCTP.iris+'/v2/burn/USDC/fees/'+srcDomain+'/'+destDomain,{cache:'no-store'});
+    if(!r.ok) return {bps:0, fee:0n, known:false};
+    const j=await r.json();
+    const list=Array.isArray(j)?j:(j.data||j.fees||[]);
+    const std=list.find(f=>Number(f.finalityThreshold)===2000) || list[list.length-1];
+    const bps=std?Number(std.minimumFee||0):0;
+    const bps100=BigInt(Math.ceil(bps*100));
+    const fee=(amountUnits*bps100 + 999999n)/1000000n; // round up
+    return {bps, fee, known:!!std};
+  }catch(e){ return {bps:0, fee:0n, known:false}; }
 }
 async function pollAttestation(txHash, btn){
   for(let i=0;i<120;i++){
@@ -1333,6 +1387,9 @@ function viewRecurring(){
   root.appendChild(el('div','page-head',
     `<div class="eyebrow">Automation</div><h1>Recurring orders</h1>
      <p>Dollar-cost average between stablecoins on a fixed schedule. Set it once, let Arc settle the rest.</p>`));
+  root.appendChild(el('div','info-strip',
+    `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C99117" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+     <b>Preview feature.</b>&nbsp;Orders are saved in this browser only and are not executed automatically yet. Nothing is sent on-chain and no funds move when you create one.`));
 
   const grid=el('div','trade-grid');
 
@@ -1460,7 +1517,7 @@ async function loadPools(box){
     if(!cnt){ box.innerHTML='No pools yet — create the first one on the right.'; return; }
     let html='';
     for(let i=0;i<cnt;i++){
-      const raw=(await dexCall(DEX.sel.pools+pad(i))||'').replace(/^0x/,'');
+      const raw=(await dexCall(DEX.sel.pools+pad(i))||'').replace(/^0x/,'').toLowerCase();
       const w=k=>raw.slice(k*64,(k+1)*64);
       if(!w(0)) continue;
       const a='0x'+w(0).slice(24), b='0x'+w(1).slice(24);
@@ -1494,7 +1551,7 @@ async function createAndSeed(cfg, btn, box){
     let id=null;
     const cnt=parseInt(await dexCall(DEX.sel.poolCount)||'0x0',16);
     for(let i=0;i<cnt;i++){
-      const raw=(await dexCall(DEX.sel.pools+pad(i))||'').replace(/^0x/,'');
+      const raw=(await dexCall(DEX.sel.pools+pad(i))||'').replace(/^0x/,'').toLowerCase();
       const w=k=>raw.slice(k*64,(k+1)*64);
       if(!w(0)) continue;
       const a='0x'+w(0).slice(24), b='0x'+w(1).slice(24);
@@ -1515,7 +1572,7 @@ async function createAndSeed(cfg, btn, box){
       id=cnt2-1;
       toast('Pool #'+id+' created','ok');
     }
-    const raw=(await dexCall(DEX.sel.pools+pad(id))||'').replace(/^0x/,'');
+    const raw=(await dexCall(DEX.sel.pools+pad(id))||'').replace(/^0x/,'').toLowerCase();
     const pa='0x'+raw.slice(24,64);
     const aIsFirst = pa===cfg.a.addr.toLowerCase();
     const t1=aIsFirst?cfg.a:cfg.b, t2=aIsFirst?cfg.b:cfg.a;
@@ -1751,6 +1808,7 @@ renderNetBadge();
 render();
 // verify the AMM router exists on the selected network, then re-render (enables swaps/pools)
 checkDex().then(()=>render());
+refreshFx();
 </script>
 </body>
 </html>

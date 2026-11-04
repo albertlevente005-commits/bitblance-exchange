@@ -50,3 +50,23 @@ Beépített védelmek:
 
 A fejlesztői sandboxból az RPC-k nem voltak elérhetők, a címek a docsból származnak, on-chain
 nem lettek verifikálva. A böngészős smoke-teszt mindkét hálózaton hibamentesen lefutott.
+
+## Kiegészítés (második kör, ugyanaznap)
+
+A `claude/wizardly-brown-zxlneq` ágról a következő javítások kerültek még be:
+
+- **Circle bridge-díj élőben.** A bridge indítása előtt az app lekéri a Circle Iris API-ból a
+  standard transzfer díját (`/v2/burn/USDC/fees/26/{cél domain}`), és azt adja át `maxFee`-ként a
+  `depositForBurn` hívásnak. Korábban 0 volt, ami mainneten díjköteles útvonalon elakadt volna.
+  Ha az összeg nem fedezi a díjat, hibát ad. A díj a bridge kártyán látszik a megerősítés előtt.
+- **Valódi pool-árajánlat a swap előnézetben.** A "You receive", a price impact és a min. received
+  (0,5% slippage) a ValtoDEX pool `getQuote` válaszából jön, ha van pool; különben referencia-árfolyam
+  és ezt a Route sor jelzi.
+- **EURC referenciaár** az ECB EUR/USD árfolyamából (frankfurter.app), fallback 1,083.
+- **Kitalált számok törölve** a tickerből és a piac-listából (TVL, 24h volumen, %-változás).
+- **Recurring fül**: figyelmeztetés, hogy csak helyi előnézet, nem küld tranzakciót.
+- Pool-dekódolásnál a címek kisbetűsítve, hogy az összehasonlítás ne függjön a node hex-írásmódjától.
+
+Tesztelés: mockolt tárcával/RPC-vel/Iris-szel végigfutott az Arc → Base bridge (approve →
+depositForBurn mainnet TokenMessengerre, maxFee = 1 bps → claim Base-en a mainnet
+MessageTransmitteren) és a testnet swap (pool #0 quote → approve → swap, minOut 0,5%).

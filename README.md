@@ -31,10 +31,10 @@ The header badge shows the active network and lets you switch. Every transaction
 
 ## Features
 
-- **Swap** — real on-chain swaps via the ValtoDEX AMM (0.30% fee), with live quotes, price impact and min-received display
+- **Swap** — real on-chain swaps via the ValtoDEX AMM (0.30% fee); the preview shows the real pool quote, price impact and min-received (0.5% slippage)
 - **Pools** — create ValtoDEX pairs and add liquidity straight from the UI (approve + addLiquidity flows)
-- **Bridge** — Circle CCTP V2 burn-and-mint from Arc to Ethereum, Base, Arbitrum, Avalanche and OP Mainnet (Sepolia / Fuji equivalents on testnet), with attestation polling and one-click claim on the destination
-- **Recurring orders** — DCA-style scheduled swaps (daily / weekly / biweekly / monthly), stored locally
+- **Bridge** — Circle CCTP V2 burn-and-mint from Arc to Ethereum, Base, Arbitrum, Avalanche and OP Mainnet (Sepolia / Fuji equivalents on testnet), with attestation polling and one-click claim on the destination. Circle's transfer fee is quoted live from the Iris API and passed as `maxFee` before the burn
+- **Recurring orders** — DCA-style scheduled swaps (daily / weekly / biweekly / monthly), stored locally (preview only, not executed automatically yet)
 - **Profile** — live on-chain balances read directly from the Arc RPC
 - **Blance AI** — built-in copilot for rates, bridging, USYC and Arc gas questions
 - **Network** (mainnet) / **Faucet** (testnet) — one-click "Add Arc to wallet", network details, how to get USDC
