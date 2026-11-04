@@ -42,11 +42,25 @@ The header badge shows the active network and lets you switch. Every transaction
 
 ## Mainnet launch checklist
 
-1. **Deploy the ValtoDEX AMM to Arc Mainnet** (chain ID 5042, deployer needs USDC for gas; set `maxFeePerGas` ≥ 20 Gwei).
+1. **Deploy the ValtoDEX AMM to Arc Mainnet** (chain ID 5042, deployer needs USDC for gas; set `maxFeePerGas` ≥ 20 Gwei). Source, tests and deploy script: [`contracts/`](contracts/README.md). ⚠️ The contract is **not audited yet**: get it audited before it holds real funds.
 2. Put the deployed router address into `NETWORKS.mainnet.dex` in `index.html`. Until then the UI pauses Swap and Pools with a notice; Bridge, balances and wallet features already work on mainnet.
    - Quick test without redeploying the site: open `index.html?dex=0xYourRouter` (stored in the browser for mainnet; `?dex=reset` clears it).
 3. Seed the first USDC/EURC pool at a market-like ratio — the first deposit sets the price and off-market ratios get arbitraged with real funds.
 4. Open the site, confirm the header says **Arc Mainnet**, and do a small swap and a small CCTP bridge end to end.
+
+## Transaction safety
+
+- **Network check before every transaction**: nothing is sent unless the wallet is on the selected Arc network (and on the destination chain when claiming a bridge transfer).
+- **Exact approvals only**: swaps, pool deposits and CCTP burns approve exactly the amount being spent, never an unlimited allowance.
+- **Slippage limit**: user-selectable max. slippage (0.1% / 0.5% / 1% / custom, hard-capped at 5%), applied as `minOut` to the on-chain swap.
+- **Pool price check**: if a pool quotes more than 2% worse than the reference rate (or a new pool's first deposit is priced more than 2% off), the user must confirm explicitly.
+- **Approval manager**: the Profile tab lists open approvals to ValtoDEX and CCTP, with one-click revoke.
+
+## Smart contract
+
+The ValtoDEX AMM source, Foundry tests and deploy script are in [`contracts/`](contracts/README.md).
+It uses the same function selectors as the original testnet router, so the front-end works with it
+unchanged. **Not audited yet.**
 
 ## Crypto project screener platform
 
