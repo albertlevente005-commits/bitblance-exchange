@@ -48,6 +48,13 @@ The header badge shows the active network and lets you switch. Every transaction
 3. Seed the first USDC/EURC pool at a market-like ratio — the first deposit sets the price and off-market ratios get arbitraged with real funds.
 4. Open the site, confirm the header says **Arc Mainnet**, and do a small swap and a small CCTP bridge end to end.
 
+## Crypto project screener platform
+
+The `screener/` directory holds a separate, data-driven crypto project screening and monitoring
+platform (Python + SQLite + FastAPI): DefiLlama / CoinGecko / GitHub data, a weighted scoring model
+with red flags, daily ranking, early-project watchlist, Telegram alerts, a JSON feed for the OKX DCA
+bot and a web dashboard. See [`screener/README.md`](screener/README.md) (Hungarian).
+
 ## Run locally
 
 Open `index.html` in any modern browser. A wallet extension (MetaMask, Rabby, Coinbase Wallet, Rainbow) is needed for the connected features.

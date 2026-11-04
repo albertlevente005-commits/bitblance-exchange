@@ -1,0 +1,12 @@
+[project]
+name = "crypto-screener"
+version = "0.1.0"
+description = "Adatvezérelt kripto projekt-szűrő és -figyelő (DefiLlama, CoinGecko, GitHub, Telegram)"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.31"]
+
+[project.scripts]
+screener = "screener.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

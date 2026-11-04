@@ -1,0 +1,15 @@
+services:
+  screener:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      # A DB és a kimenetek a /data köteten maradnak meg
+      SCREENER_DB_PATH: /data/screener.db
+      SCREENER_OUT_DIR: /data/out
+    volumes:
+      - screener-data:/data
+    restart: unless-stopped
+volumes:
+  screener-data:
