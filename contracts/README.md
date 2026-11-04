@@ -80,8 +80,9 @@ const NETWORKS = {
     dex: '0xYOUR_DEPLOYED_ADDRESS',
 ```
 
-Mainnet trading in the front-end also stays disabled until the `READ_ONLY` guard
-(`const READ_ONLY = NET.mainnet;`) is lifted, which should happen only after the audit.
+The front-end detects the router's bytecode on start-up and enables Swap and Pools
+automatically. To try a deployment before editing the file, open `index.html?dex=0xYourRouter`
+(`?dex=reset` clears it). On mainnet, do this only after the audit.
 
 Optional: verify the source on the explorer so users can read it
 (`forge verify-contract <address> src/ValtoDEX.sol:ValtoDEX --chain-id 5042 ...`, see the
