@@ -1,0 +1,82 @@
+# Kripto projekt-szűrő konfiguráció.
+# A titkok (Telegram token, API kulcsok) a .env fájlba mennek, nem ide.
+
+[general]
+db_path = "screener.db"
+out_dir = "out"
+# Kérések közti minimális szünet másodpercben (API-kímélés)
+defillama_min_interval = 0.25
+coingecko_min_interval = 2.5
+github_min_interval = 0.5
+
+[universe]
+# Mely DefiLlama-protokollok kerüljenek a figyelt körbe.
+min_tvl_usd = 2_000_000
+top_n_by_tvl = 300
+# Ezeket a DefiLlama-kategóriákat kihagyjuk (CEX, stablecoin-kibocsátó, stb.)
+exclude_categories = ["CEX", "Chain", "RWA", "Bridge", "Staking Pool", "Liquid Staking"]
+# Friss listázásnak számít, ha a DefiLlama ennyi napon belül vette fel
+early_days = 60
+# Minden futásnál legfeljebb ennyi CoinGecko részletlekérés (fejlesztői adat, tőzsdeszám)
+coingecko_details_limit = 40
+# Hány naponta frissüljön egy projekt CoinGecko-részlete / GitHub-statisztikája
+details_refresh_days = 7
+# GitHub lekérés legfeljebb ennyi projektre futásonként (token nélkül tartsd alacsonyan)
+github_projects_limit = 30
+# Legfeljebb ennyi repót nézünk egy szervezetnél
+github_repos_per_project = 3
+# DefiLlama TVL-történet lekérése (30 napos változáshoz) legfeljebb ennyi projektre
+tvl_history_limit = 150
+# Kézzel hozzáadott projektek (DefiLlama slug), akkor is bekerülnek, ha kicsik
+always_include = []
+
+[weights]
+usage = 30
+tokenomics = 20
+team = 20
+liquidity = 15
+red_flags = 15
+
+[scoring]
+# Ha a piros-zászló pontszám ez alá esik, az összpontszám felülről korlátozva lesz
+red_flag_floor = 30
+red_flag_cap_total = 45
+# Jelentős unlock: ennyi napon belül és a piaci kapitalizáció ekkora %-a felett
+unlock_horizon_days = 30
+unlock_pct_of_mcap = 5.0
+# Fejlesztés "leállt": ennyi napja nincs push
+dev_stalled_days = 90
+# Gyanúsan magas hozam (APY %), legalább ekkora pool-TVL mellett
+extreme_apy = 100.0
+extreme_apy_min_pool_tvl = 100_000
+
+[alerts]
+tvl_drop_7d_pct = -25.0
+tvl_drop_1d_pct = -15.0
+unlock_days_ahead = 14
+new_project_min_score = 60
+score_jump_points = 15
+max_alerts_per_run = 25
+
+[dca]
+# Az OKX DCA bot számára exportált jelöltek szűrője
+min_score = 70
+min_liquidity_score = 50
+min_red_flag_score = 60
+min_mcap_usd = 20_000_000
+max_candidates = 15
+
+# Kézi felülírások DefiLlama slug szerint. Példa:
+# [overrides.uniswap]
+# anonymous_team = false
+# concentrated_ownership = false
+# audited = true
+# exclude = false
+# notes = "Megjegyzés"
+[overrides]
+
+[web]
+# A beépített ütemező a webszerverrel együtt indul és ekkor futtatja a napi kört (helyi idő)
+scheduler = true
+run_at = "06:00"
+send_telegram = true

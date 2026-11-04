@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kripto szűrő platform</title>
+<style>
+:root{--bg:#f7f7f8;--panel:#fff;--fg:#17191f;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb;--good:#15803d;--mid:#b45309;--bad:#b91c1c;--chip:#eef2ff}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--panel:#171a21;--fg:#e5e7eb;--muted:#9ca3af;--line:#262a33;--accent:#60a5fa;--good:#4ade80;--mid:#fbbf24;--bad:#f87171;--chip:#1f2937}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+header h1{font-size:18px;margin:0 12px 0 0}
+nav button{background:none;border:1px solid var(--line);color:var(--fg);padding:6px 12px;border-radius:999px;cursor:pointer;margin-right:4px}
+nav button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.status{margin-left:auto;color:var(--muted);font-size:12px}
+main{padding:16px;max-width:1500px;margin:0 auto}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+input,select{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+.note{border:1px solid var(--line);background:var(--panel);padding:10px 12px;border-radius:8px;color:var(--muted);margin-bottom:12px}
+.wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel);cursor:pointer;user-select:none;color:var(--muted);font-weight:600}
+th.l,td.l{text-align:left}
+tbody tr{cursor:pointer} tbody tr:hover{background:var(--chip)}
+.good{color:var(--good);font-weight:700}.mid{color:var(--mid);font-weight:700}.bad{color:var(--bad);font-weight:700}
+.chip{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 6px;margin:1px 2px;font-size:11px;color:var(--muted)}
+.chip.crit{color:var(--bad)}
+.muted{color:var(--muted)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;width:160px;display:inline-block;vertical-align:middle;margin-left:8px}
+.bar i{display:block;height:100%;background:var(--accent)}
+#detail{position:fixed;top:0;right:0;height:100%;width:min(560px,100%);background:var(--panel);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .2s;overflow-y:auto;padding:16px;z-index:10}
+#detail.open{transform:none}
+#detail h2{margin:0 0 4px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:10px 0}
+.grid div{padding:6px 0;border-bottom:1px solid var(--line)}
+.grid b{display:block;font-size:11px;color:var(--muted);font-weight:600}
+.close{float:right;background:none;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:4px 10px;cursor:pointer}
+svg{width:100%;height:80px}
+.alert{padding:8px 10px;border-bottom:1px solid var(--line)} .alert small{color:var(--muted)}
+@media (max-width:640px){header h1{font-size:16px}.status{display:none}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kripto szűrő</h1>
+  <nav>
+    <button data-tab="ranking" class="active">Rangsor</button>
+    <button data-tab="watchlist">Figyelőlista</button>
+    <button data-tab="dca">DCA-jelöltek</button>
+    <button data-tab="alerts">Riasztások</button>
+  </nav>
+  <span class="status" id="status">…</span>
+</header>
+<main>
+  <div class="note">Döntéstámogató eszköz: a pontszám a kockázatot szűri, nyereséget nem garantál, nem pénzügyi tanács. Kis kapitalizációjú projekteknél a teljes veszteség is lehetséges.</div>
+  <div class="toolbar" id="toolbar">
+    <input id="q" placeholder="Keresés (név, szimbólum)">
+    <select id="cat"><option value="">Minden kategória</option></select>
+    <select id="minscore"><option value="0">Minden pont</option><option value="50">≥ 50</option><option value="60">≥ 60</option><option value="70">≥ 70</option></select>
+    <select id="flag"><option value="">Minden zászló</option></select>
+    <select id="day"></select>
+    <button id="refresh" style="border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:7px 12px;cursor:pointer">Frissít</button>
+  </div>
+  <div class="wrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+  <div id="list" style="display:none"></div>
+</main>
+<aside id="detail"><button class="close" onclick="closeDetail()">Bezár</button><div id="detailBody"></div></aside>
+<script>
+const $=s=>document.querySelector(s);
+const usd=v=>v==null?'–':(Math.abs(v)>=1e9?'$'+(v/1e9).toFixed(2)+'B':Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':'$'+(v/1e3).toFixed(0)+'k');
+const pct=v=>v==null?'–':(v>0?'+':'')+v.toFixed(1)+'%';
+const n0=v=>v==null?'–':Math.round(v);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const CRIT=new Set(['prior_exploit','extreme_yield','anonymous_team','concentrated_ownership','unlock_shock','tvl_collapse']);
+const FLAG_HU={no_audit:'nincs audit',audit_unknown:'audit ismeretlen',prior_exploit:'korábbi exploit',unlock_shock:'nagy unlock',low_float:'kevés forgó',dev_stalled:'fejlesztés állt',extreme_yield:'extrém hozam',wash_trade_suspect:'gyanús forgalom',tvl_collapse:'TVL-zuhanás',anonymous_team:'névtelen csapat',concentrated_ownership:'koncentrált tulajdon',micro_cap:'mikro kapitalizáció',low_data_coverage:'kevés adat'};
+let tab='ranking', rows=[], sortKey='score', sortDir=-1;
+const COLS=[['name','Projekt','l'],['category','Kat.','l'],['score','Pont'],['usage','Haszn.'],['tokenomics','Token.'],['team','Csapat'],['liquidity','Likv.'],['red_flags','Zászló'],['tvl','TVL'],['tvl_change_7d','TVL 7n'],['tvl_change_30d','TVL 30n'],['fees_30d','Díj 30n'],['mcap','Mcap'],['coverage','Lefed.'],['flags','Zászlók','l']];
+const chips=f=>(f||[]).map(x=>`<span class="chip ${CRIT.has(x)?'crit':''}" title="${x}">${esc(FLAG_HU[x]||x)}</span>`).join('');
+const cls=s=>s>=70?'good':s>=50?'mid':'bad';
+
+async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(r.status+' '+p);return r.json();}
+
+async function loadMeta(){
+  try{
+    const h=await api('/api/health');
+    const s=h.scheduler;
+    $('#status').textContent=`Adatok: ${h.latest_day||'nincs'} · ${h.projects} projekt · ütemező ${s.enabled?'be ('+s.run_at+')':'ki'}${s.running?' · FUT':''}${h.telegram_configured?' · Telegram OK':' · Telegram nincs beállítva'}`;
+    const cats=await api('/api/categories');$('#cat').innerHTML='<option value="">Minden kategória</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join('');
+    const days=await api('/api/days');$('#day').innerHTML=days.map((d,i)=>`<option value="${d}">${i?d:d+' (legfrissebb)'}</option>`).join('')||'<option value="">nincs értékelés</option>';
+    $('#flag').innerHTML='<option value="">Minden zászló</option>'+Object.keys(FLAG_HU).map(k=>`<option value="${k}">${FLAG_HU[k]}</option>`).join('');
+  }catch(e){$('#status').textContent='API nem elérhető: '+e.message;}
+}
+function renderTable(items){
+  $('#tbl thead').innerHTML='<tr><th>#</th>'+COLS.map(([k,l,a])=>`<th class="${a||''}" data-k="${k}">${l}${sortKey===k?(sortDir<0?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
+  const sorted=[...items].sort((a,b)=>{const x=a[sortKey],y=b[sortKey];if(x==null)return 1;if(y==null)return -1;return (x>y?1:x<y?-1:0)*sortDir;});
+  $('#tbl tbody').innerHTML=sorted.map((r,i)=>`<tr data-slug="${esc(r.slug)}"><td>${i+1}</td><td class="l"><b>${esc(r.name)}</b> <span class="muted">${esc(r.symbol||'')}</span></td><td class="l muted">${esc(r.category||'')}</td><td class="${cls(r.score)}">${n0(r.score)}</td><td>${n0(r.usage)}</td><td>${n0(r.tokenomics)}</td><td>${n0(r.team)}</td><td>${n0(r.liquidity)}</td><td>${n0(r.red_flags)}</td><td>${usd(r.tvl)}</td><td>${pct(r.tvl_change_7d)}</td><td>${pct(r.tvl_change_30d)}</td><td>${usd(r.fees_30d)}</td><td>${usd(r.mcap)}</td><td>${Math.round((r.coverage||0)*100)}%</td><td class="l">${chips(r.flags)}</td></tr>`).join('')||'<tr><td colspan="16" class="l muted">Nincs adat. Futtasd a napi kört (screener run-daily) vagy várd meg az ütemezőt.</td></tr>';
+  document.querySelectorAll('#tbl th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=k==='name'||k==='category'?1:-1;}renderTable(rows);});
+  document.querySelectorAll('#tbl tbody tr[data-slug]').forEach(tr=>tr.onclick=()=>openDetail(tr.dataset.slug));
+}
+async function load(){
+  const q=new URLSearchParams();const day=$('#day').value;if(day)q.set('day',day);
+  $('#toolbar').style.display=tab==='alerts'||tab==='dca'?'none':'flex';
+  $('.wrap').style.display=tab==='alerts'||tab==='dca'?'none':'block';$('#list').style.display=tab==='alerts'||tab==='dca'?'block':'none';
+  try{
+    if(tab==='ranking'){
+      const v=$('#q').value;if(v)q.set('q',v);const c=$('#cat').value;if(c)q.set('category',c);q.set('min_score',$('#minscore').value);const f=$('#flag').value;if(f)q.set('flag',f);q.set('top','500');
+      rows=(await api('/api/ranking?'+q)).items;renderTable(rows);
+    }else if(tab==='watchlist'){
+      q.set('min_score',$('#minscore').value||'50');rows=(await api('/api/watchlist?'+q)).items;renderTable(rows);
+    }else if(tab==='dca'){
+      const d=await api('/api/dca-candidates?'+q);
+      $('#list').innerHTML=`<div class="note">Szűrő: pont ≥ ${d.filter.min_score}, likviditás ≥ ${d.filter.min_liquidity_score}, piros zászló ≥ ${d.filter.min_red_flag_score}, mcap ≥ ${usd(d.filter.min_mcap_usd)}. Fájl az OKX bot számára: <code>out/dca_candidates.json</code> · API: <code>/api/dca-candidates</code></div>`+
+        (d.candidates.length?`<div class="wrap"><table><thead><tr><th>#</th><th class="l">Szimb.</th><th class="l">Projekt</th><th>Pont</th><th>Likv.</th><th>Zászló</th><th>Mcap</th><th class="l">Zászlók</th></tr></thead><tbody>${d.candidates.map((c,i)=>`<tr data-slug="${esc(c.slug)}"><td>${i+1}</td><td class="l"><b>${esc(c.symbol)}</b></td><td class="l">${esc(c.name)}</td><td class="${cls(c.score)}">${n0(c.score)}</td><td>${n0(c.liquidity)}</td><td>${n0(c.red_flags)}</td><td>${usd(c.mcap)}</td><td class="l">${chips(c.flags)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Jelenleg egyetlen projekt sem megy át a teljes szűrőn.</p>');
+      document.querySelectorAll('#list tr[data-slug]').forEach(tr=>tr.onclick=()=>openDetail(tr.dataset.slug));
+    }else{
+      const d=await api('/api/alerts?limit=200');
+      $('#list').innerHTML='<div class="wrap">'+(d.items.map(a=>`<div class="alert"><span class="chip ${a.severity==='crit'?'crit':''}">${a.severity}</span> ${a.message} <br><small>${a.created_at}${a.sent_at?' · elküldve '+a.sent_at:' · még nem küldve'}</small></div>`).join('')||'<p class="muted" style="padding:10px">Még nincs riasztás.</p>')+'</div>';
+    }
+  }catch(e){$('#tbl tbody').innerHTML=`<tr><td colspan="16" class="l bad">Hiba: ${esc(e.message)}</td></tr>`;}
+}
+function spark(vals){
+  const v=vals.filter(x=>x!=null);if(v.length<2)return '<p class="muted">Nincs elég történeti adat (naponta gyűlik).</p>';
+  const mn=Math.min(...v),mx=Math.max(...v),w=500,h=80;
+  const pts=v.map((x,i)=>`${(i/(v.length-1))*w},${h-4-((x-mn)/(mx-mn||1))*(h-8)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="2" points="${pts}"/></svg>`;
+}
+async function openDetail(slug){
+  history.replaceState(null,'','/project/'+slug);
+  const d=await api('/api/projects/'+slug);const p=d.project,s=d.score,last=d.snapshots[d.snapshots.length-1]||{};
+  const sub=(l,v)=>`<div><b>${l}</b>${n0(v)}<span class="bar"><i style="width:${v||0}%"></i></span></div>`;
+  const det=s?.details||{};
+  const detailRows=cat=>Object.entries(det[cat]||{}).map(([k,v])=>`<span class="chip">${k}: ${v==null?'–':v}</span>`).join('');
+  $('#detailBody').innerHTML=`
+    <h2>${esc(p.name)} <span class="muted">${esc(p.symbol||'')}</span></h2>
+    <div class="muted">${esc(p.category||'')} · ${(p.chains||[]).slice(0,5).map(esc).join(', ')} · listázva: ${p.listed_at||'?'} ${p.url?`· <a href="${esc(p.url)}" target="_blank" rel="noopener">weboldal</a>`:''} ${p.gecko_id?`· <a href="https://www.coingecko.com/en/coins/${esc(p.gecko_id)}" target="_blank" rel="noopener">CoinGecko</a>`:''} · <a href="https://defillama.com/protocol/${esc(p.slug)}" target="_blank" rel="noopener">DefiLlama</a></div>
+    ${s?`<p style="font-size:28px;margin:10px 0" class="${cls(s.total)}">${n0(s.total)} <span class="muted" style="font-size:13px">/100 · lefedettség ${Math.round(s.coverage*100)}% · ${s.day}</span></p>
+    <div>${chips(s.flags)}</div>
+    <div class="grid">${sub('Valós használat',s.usage)}${sub('Tokenomika',s.tokenomics)}${sub('Csapat és fejlesztés',s.team)}${sub('Likviditás',s.liquidity)}${sub('Piros zászlók',s.red_flags)}</div>`:'<p class="muted">Még nincs pontszám.</p>'}
+    <h3>Pontszám-történet</h3>${spark(d.score_history.map(x=>x.total))}
+    <h3>TVL</h3>${spark(d.snapshots.map(x=>x.tvl))}
+    <div class="grid">
+      <div><b>TVL</b>${usd(last.tvl)} (7n ${pct(last.tvl_change_7d)}, 30n ${pct(last.tvl_change_30d)})</div>
+      <div><b>Díjbevétel 30n</b>${usd(last.fees_30d)} (${pct(last.fees_change_30d)})</div>
+      <div><b>Felhasználó/nap</b>${last.users_24h==null?'–':Math.round(last.users_24h)}</div>
+      <div><b>Ár / 30n</b>${last.price==null?'–':'$'+last.price} (${pct(last.price_change_30d)})</div>
+      <div><b>Mcap / FDV</b>${usd(last.mcap)} / ${usd(last.fdv)}</div>
+      <div><b>Forgalom 24h</b>${usd(last.volume_24h)}</div>
+      <div><b>Forgó / teljes kínálat</b>${last.circ_supply==null?'–':Math.round(last.circ_supply).toLocaleString()} / ${last.total_supply==null?'–':Math.round(last.total_supply).toLocaleString()}</div>
+      <div><b>Következő unlock</b>${last.next_unlock_date||'–'} ${last.next_unlock_amount&&last.price?'('+usd(last.next_unlock_amount*last.price)+')':''}</div>
+      <div><b>Max APY a poolokban</b>${last.max_apy==null?'–':last.max_apy.toFixed(1)+'%'}</div>
+      <div><b>Auditok</b>${p.audits??'?'} ${(p.audit_links||[]).slice(0,3).map((u,i)=>`<a href="${esc(u)}" target="_blank" rel="noopener">[${i+1}]</a>`).join(' ')}</div>
+      <div><b>Tőzsdék / spread</b>${p.extra?.exchanges??'–'} / ${p.extra?.avg_spread_pct==null?'–':p.extra.avg_spread_pct.toFixed(2)+'%'}</div>
+      <div><b>GitHub</b>${d.dev?`${d.dev.commits_90d} commit, ${d.dev.contributors_90d} aktív kontribútor (90n), ${d.dev.releases_90d} release, utolsó push ${(d.dev.last_push||'').slice(0,10)}`:'nincs lekérve'} ${(d.dev?.repos||p.github||[]).slice(0,3).map(r=>`<a href="https://github.com/${esc(r)}" target="_blank" rel="noopener">${esc(r)}</a>`).join(' ')}</div>
+    </div>
+    ${d.hacks.length?`<h3 class="bad">Ismert exploitok</h3>${d.hacks.map(h=>`<div class="alert">${h.day} · ${usd(h.amount_usd)} · ${esc(h.technique||'')}</div>`).join('')}`:''}
+    ${d.alerts.length?`<h3>Riasztások</h3>${d.alerts.map(a=>`<div class="alert">${a.message}<br><small>${a.created_at}</small></div>`).join('')}`:''}
+    <h3>Részletes mutatók</h3>
+    <p><b>Használat:</b> ${detailRows('usage')}</p><p><b>Tokenomika:</b> ${detailRows('tokenomics')}</p><p><b>Csapat:</b> ${detailRows('team')}</p><p><b>Likviditás:</b> ${detailRows('liquidity')}</p>
+    <p><b>Büntetések:</b> ${Object.entries(det.red_flags?.penalties||{}).map(([k,v])=>`<span class="chip crit">${FLAG_HU[k]||k}: -${v}</span>`).join('')||'<span class="muted">nincs</span>'}</p>
+    ${Object.keys(p.override||{}).length?`<p class="muted">Kézi felülírás (config.toml): ${esc(JSON.stringify(p.override))}</p>`:''}`;
+  $('#detail').classList.add('open');
+}
+function closeDetail(){$('#detail').classList.remove('open');history.replaceState(null,'','/');}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');tab=b.dataset.tab;load();});
+['q','cat','minscore','flag','day'].forEach(id=>$('#'+id).addEventListener(id==='q'?'input':'change',load));
+$('#refresh').onclick=()=>{loadMeta().then(load);};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+loadMeta().then(()=>{load();const m=location.pathname.match(/^\/project\/([^/]+)/);if(m)openDetail(decodeURIComponent(m[1]));});
+</script>
+</body>
+</html>
