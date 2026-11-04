@@ -4,6 +4,11 @@ Native stablecoin DEX interface for **Arc** (Circle's stablecoin-native L1) — 
 
 **Live app:** single-file build, no framework, no build step. Just open `index.html`.
 
+## Also in this repo
+
+- [`eredmenyek/`](eredmenyek/) — **Eredménytábla**, a Flashscore-style live scores page for Hungarian and European football and ice hockey (single-file, no build step). Served at `/eredmenyek/` on GitHub Pages.
+- [`screener/`](screener/) — data-driven crypto project screener.
+
 ## Networks
 
 The app runs on **Arc Mainnet by default**. Arc Testnet stays available for QA:
