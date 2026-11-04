@@ -54,6 +54,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "dune": {"enabled": False, "max_age_hours": 36, "execute_if_stale": False, "queries": []},
     "snapshot": {"enabled": True, "projects_limit": 80, "window_days": 90, "min_interval": 1.0},
+    "tokenterminal": {"enabled": False, "mode": "bulk", "window_days": 30, "projects_limit": 100, "min_interval": 0.5, "metrics": {}, "project_ids": {}},
     "overrides": {},
 }
 
@@ -89,6 +90,7 @@ class Secrets:
     coingecko_api_key: str = ""
     github_token: str = ""
     dune_api_key: str = ""
+    tokenterminal_api_key: str = ""
 
     @classmethod
     def from_env(cls) -> "Secrets":
@@ -98,6 +100,7 @@ class Secrets:
             coingecko_api_key=os.environ.get("COINGECKO_API_KEY", ""),
             github_token=os.environ.get("GITHUB_TOKEN", ""),
             dune_api_key=os.environ.get("DUNE_API_KEY", ""),
+            tokenterminal_api_key=os.environ.get("TOKENTERMINAL_API_KEY", ""),
         )
 
 

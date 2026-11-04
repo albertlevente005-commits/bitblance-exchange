@@ -54,6 +54,7 @@ def _project_payload(conn: sqlite3.Connection, cfg: Config, slug: str) -> dict[s
         "alerts": [dict(a) for a in alerts],
         "governance": db.latest_metrics(conn, pid, "snapshot", max_age_days=3650),
         "dune": db.latest_metrics(conn, pid, "dune", max_age_days=3650),
+        "tokenterminal": db.latest_metrics(conn, pid, "tokenterminal", max_age_days=3650),
     }
 
 
