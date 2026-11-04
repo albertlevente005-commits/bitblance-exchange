@@ -1182,8 +1182,10 @@ async function doBridge(st){
     const amt=units(v,6);
     btn.textContent='Quoting Circle fee\u2026';
     const feeQ=await cctpFee(ARC.cctpDomain, dest.domain, amt);
+    // Fail closed: without a confirmed fee quote a burn with maxFee=0 on a fee-charging route would never be attested.
+    if(!feeQ.known) throw new Error('could not fetch the Circle transfer fee quote - check your connection and try again');
     if(feeQ.fee>=amt) throw new Error('amount too small to cover the Circle transfer fee ('+fmt(fromUnits(feeQ.fee,6),4)+' USDC)');
-    st.innerHTML='Circle transfer fee: <span class="mono">'+(feeQ.known?fmt(fromUnits(feeQ.fee,6),4)+' USDC ('+feeQ.bps+' bps)':'0 USDC')+'</span>';
+    st.innerHTML='Circle transfer fee: <span class="mono">'+fmt(fromUnits(feeQ.fee,6),4)+' USDC ('+feeQ.bps+' bps)</span>';
     btn.textContent='Approve USDC\u2026';
     toast('If asked, approve exactly '+fmt(v,2)+' USDC for CCTP in MetaMask','info');
     await approveExact(TOKENS[0], CCTP.messenger, amt, btn, 'Approving\u2026');
@@ -1216,8 +1218,9 @@ async function cctpFee(srcDomain, destDomain, amountUnits){
     if(!r.ok) return {bps:0, fee:0n, known:false};
     const j=await r.json();
     const list=Array.isArray(j)?j:(j.data||j.fees||[]);
-    const std=list.find(f=>Number(f.finalityThreshold)===2000) || list[list.length-1];
-    const bps=std?Number(std.minimumFee||0):0;
+    const std=list.find(f=>Number(f.finalityThreshold)===2000);
+    if(!std || !Number.isFinite(Number(std.minimumFee))) return {bps:0, fee:0n, known:false};
+    const bps=Number(std.minimumFee);
     const bps100=BigInt(Math.ceil(bps*100));
     const fee=(amountUnits*bps100 + 999999n)/1000000n; // round up
     return {bps, fee, known:!!std};
