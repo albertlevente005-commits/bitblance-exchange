@@ -52,6 +52,8 @@ def _project_payload(conn: sqlite3.Connection, cfg: Config, slug: str) -> dict[s
         "dev": None if dev is None else {**dict(dev), "repos": db.row_json(dev, "repos", [])},
         "hacks": [dict(h) for h in db.hacks_for(conn, slug)],
         "alerts": [dict(a) for a in alerts],
+        "governance": db.latest_metrics(conn, pid, "snapshot", max_age_days=3650),
+        "dune": db.latest_metrics(conn, pid, "dune", max_age_days=3650),
     }
 
 

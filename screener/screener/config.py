@@ -52,6 +52,8 @@ DEFAULTS: dict[str, Any] = {
         "min_mcap_usd": 20_000_000,
         "max_candidates": 15,
     },
+    "dune": {"enabled": False, "max_age_hours": 36, "execute_if_stale": False, "queries": []},
+    "snapshot": {"enabled": True, "projects_limit": 80, "window_days": 90, "min_interval": 1.0},
     "overrides": {},
 }
 
@@ -86,6 +88,7 @@ class Secrets:
     telegram_chat_id: str = ""
     coingecko_api_key: str = ""
     github_token: str = ""
+    dune_api_key: str = ""
 
     @classmethod
     def from_env(cls) -> "Secrets":
@@ -94,6 +97,7 @@ class Secrets:
             telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
             coingecko_api_key=os.environ.get("COINGECKO_API_KEY", ""),
             github_token=os.environ.get("GITHUB_TOKEN", ""),
+            dune_api_key=os.environ.get("DUNE_API_KEY", ""),
         )
 
 

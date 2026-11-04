@@ -154,6 +154,17 @@ async function openDetail(slug){
       <div><b>Tőzsdék / spread</b>${p.extra?.exchanges??'–'} / ${p.extra?.avg_spread_pct==null?'–':p.extra.avg_spread_pct.toFixed(2)+'%'}</div>
       <div><b>GitHub</b>${d.dev?`${d.dev.commits_90d} commit, ${d.dev.contributors_90d} aktív kontribútor (90n), ${d.dev.releases_90d} release, utolsó push ${(d.dev.last_push||'').slice(0,10)}`:'nincs lekérve'} ${(d.dev?.repos||p.github||[]).slice(0,3).map(r=>`<a href="https://github.com/${esc(r)}" target="_blank" rel="noopener">${esc(r)}</a>`).join(' ')}</div>
     </div>
+    <h3>Governance (Snapshot)</h3>
+    ${d.governance&&d.governance.space?`<div class="grid">
+      <div><b>Space</b><a href="https://snapshot.box/#/s:${esc(d.governance.space)}" target="_blank" rel="noopener">${esc(d.governance.space_name||d.governance.space)}</a></div>
+      <div><b>Követők</b>${d.governance.followers==null?'–':Math.round(d.governance.followers).toLocaleString()}</div>
+      <div><b>Javaslatok 90 nap / összes</b>${n0(d.governance.proposals_90d)} / ${n0(d.governance.proposals_total)}</div>
+      <div><b>Átlag szavazó / javaslat</b>${n0(d.governance.avg_voters_90d)} (max ${n0(d.governance.max_voters_90d)})</div>
+      <div><b>Aktív javaslat</b>${n0(d.governance.active_proposals)}</div>
+      <div><b>Utolsó javaslat</b>${d.governance.last_proposal_days==null?'–':d.governance.last_proposal_days+' napja'} <span class="muted">(${d.governance._day||''})</span></div>
+    </div>`:`<p class="muted">${p.extra?.snapshot_checked_at?'Nem találtunk Snapshot space-t. Kézzel: config.toml [overrides.'+esc(p.slug)+'] snapshot_space = "..."':'Még nincs lekérve.'}</p>`}
+    <h3>Dune-mutatók</h3>
+    ${d.dune&&Object.keys(d.dune).filter(k=>!k.startsWith('_')).length?`<div class="grid">${Object.entries(d.dune).filter(([k])=>!k.startsWith('_')).map(([k,v])=>`<div><b>${esc(k)}</b>${typeof v==='number'?(Math.abs(v)>=1000?Math.round(v).toLocaleString():v):esc(v)}</div>`).join('')}</div><p class="muted">Dune query ${esc(p.extra?.dune_query_id||'')} · futás: ${esc((p.extra?.dune_executed_at||'').slice(0,16))} · adat napja: ${esc(d.dune._day||'')}</p>`:'<p class="muted">Nincs Dune-adat. A config.toml [dune] részében adhatsz meg mentett lekérdezéseket (DUNE_API_KEY szükséges).</p>'}
     ${d.hacks.length?`<h3 class="bad">Ismert exploitok</h3>${d.hacks.map(h=>`<div class="alert">${h.day} · ${usd(h.amount_usd)} · ${esc(h.technique||'')}</div>`).join('')}`:''}
     ${d.alerts.length?`<h3>Riasztások</h3>${d.alerts.map(a=>`<div class="alert">${a.message}<br><small>${a.created_at}</small></div>`).join('')}`:''}
     <h3>Részletes mutatók</h3>

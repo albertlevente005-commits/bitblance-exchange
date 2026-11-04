@@ -80,3 +80,28 @@ max_candidates = 15
 scheduler = true
 run_at = "06:00"
 send_telegram = true
+
+[snapshot]
+# Governance-aktivitás a Snapshot hubról (nem kell kulcs). A space-t a DefiLlama governanceID
+# mezőjéből vagy tippekből (slug.eth, slugdao.eth, ...) oldjuk fel; kézzel: [overrides.slug] snapshot_space = "x.eth"
+enabled = true
+projects_limit = 80
+window_days = 90
+min_interval = 1.0
+
+[dune]
+# Dune Analytics: mentett lekérdezések eredményeit kötjük a projektekhez. Kell a DUNE_API_KEY a .env-ben.
+# Az eredmény lekérése olcsó; a futtatás (execute_if_stale) kreditet fogyaszt.
+enabled = false
+max_age_hours = 36
+execute_if_stale = false
+
+# Példa: egy lekérdezés, amelynek eredménye soronként egy protokoll ("protocol" oszlop = DefiLlama slug),
+# és oszlopai: active_users_30d, revenue_usd_30d, tx_count_30d.
+# A szabványos mutatónevek (users_24h, users_30d, revenue_30d, fees_30d, txs_30d, volume_30d, holders)
+# beépülnek a pontozásba; bármilyen más név csak megjelenik a projekt oldalán.
+# [[dune.queries]]
+# id = 1234567
+# match_by = "slug"               # slug | symbol | gecko_id | name
+# match_column = "protocol"
+# metrics = { users_30d = "active_users_30d", revenue_30d = "revenue_usd_30d", txs_30d = "tx_count_30d" }

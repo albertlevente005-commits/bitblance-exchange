@@ -1,7 +1,7 @@
 """Közös tesztsegédek: hamis HTTP-transport rögzített API-válaszokkal."""
 from __future__ import annotations
 
-import json
+import json as _json
 import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -27,6 +27,7 @@ def build_fixtures() -> dict[str, object]:
     protocols = [
         {"id": "1", "name": "Solid Finance", "slug": "solid-finance", "symbol": "SOL1", "gecko_id": "solid-finance", "category": "Lending",
          "chains": ["Ethereum", "Arbitrum"], "url": "https://solid.example", "twitter": "solidfi", "github": ["solid-finance"],
+         "governanceID": ["snapshot:solidgov.eth", "compound-governor:0xabc"],
          "listedAt": ts(900), "audits": "3", "audit_links": ["https://audit.example/solid"], "tvl": 800_000_000, "change_1d": 0.5, "change_7d": 4.0, "mcap": 500_000_000},
         {"id": "2", "name": "Fresh Protocol", "slug": "fresh-protocol", "symbol": "FRSH", "gecko_id": "fresh-protocol", "category": "Dexes",
          "chains": ["Base"], "url": "https://fresh.example", "github": ["fresh-labs/core"], "listedAt": ts(12), "audits": "1", "audit_links": [],
@@ -82,7 +83,27 @@ def build_fixtures() -> dict[str, object]:
     def commits(n, authors):
         return [{"sha": str(i), "author": {"login": authors[i % len(authors)]}, "commit": {"author": {"email": "x@y"}}} for i in range(n)]
 
+    dune_rows = [
+        {"protocol": "solid-finance", "active_users_30d": 180_000, "revenue_usd_30d": 2_100_000, "tx_count_30d": 950_000, "whale_share": 0.31},
+        {"protocol": "fresh-protocol", "active_users_30d": 4_200, "revenue_usd_30d": 90_000, "tx_count_30d": 20_000, "whale_share": 0.7},
+        {"protocol": "unknown-thing", "active_users_30d": 1, "revenue_usd_30d": 1, "tx_count_30d": 1, "whale_share": 0},
+    ]
+    dune_results = {"execution_id": "01X", "state": "QUERY_STATE_COMPLETED", "execution_ended_at": iso(5), "result": {"rows": dune_rows}}
+
+    snapshot_spaces = {
+        "solidgov.eth": {"id": "solidgov.eth", "name": "Solid Governance", "followersCount": 12_000, "proposalsCount": 140, "verified": True},
+        "fresh-protocol.eth": {"id": "fresh-protocol.eth", "name": "Fresh", "followersCount": 300, "proposalsCount": 0, "verified": False},
+        "freshdao.eth": {"id": "freshdao.eth", "name": "Fresh DAO", "followersCount": 900, "proposalsCount": 6, "verified": False},
+    }
+    snapshot_proposals = {
+        "solidgov.eth": [{"id": f"p{i}", "title": f"SIP-{i}", "state": "closed" if i else "active", "created": ts(5 + i * 12), "end": ts(0), "votes": 800 + 50 * i, "scores_total": 1e6} for i in range(7)],
+        "freshdao.eth": [{"id": "f1", "title": "FP-1", "state": "closed", "created": ts(20), "end": ts(13), "votes": 25, "scores_total": 1000}],
+    }
+
     fx = {
+        "_dune_results": dune_results,
+        "_snapshot_spaces": snapshot_spaces,
+        "_snapshot_proposals": snapshot_proposals,
         "https://api.llama.fi/protocols": protocols,
         "https://api.llama.fi/overview/fees": fees,
         "https://api.llama.fi/overview/fees?dataType=dailyRevenue": revenue,
@@ -122,11 +143,19 @@ class FakeTransport:
         self.calls: list[str] = []
         self.sent: list[dict] = []
 
-    def __call__(self, url: str, params: dict | None, headers: dict | None):
-        self.calls.append(url)
+    def __call__(self, url: str, params: dict | None, headers: dict | None, method: str = "GET", json: dict | None = None):
+        self.calls.append(url if method == "GET" else f"{method} {url}")
         if url.startswith("https://api.telegram.org/"):
             self.sent.append(params or {})
             return 200, {"ok": True}, {}
+        if url == "https://hub.snapshot.org/graphql":
+            return self._snapshot(json or {})
+        if url.startswith("https://api.dune.com/"):
+            if not (headers or {}).get("X-Dune-API-Key"):
+                return 401, {"error": "missing key"}, {}
+            if url.endswith("/execute"):
+                return 200, {"execution_id": "01X", "state": "QUERY_STATE_PENDING"}, {}
+            return 200, self.fixtures["_dune_results"], {}
         key = url
         if params and params.get("dataType"):
             key = f"{url}?dataType={params['dataType']}"
@@ -134,8 +163,18 @@ class FakeTransport:
             body = self.fixtures[key]
             if "commits" in url and params and int(params.get("page", 1)) > 1:
                 body = []
-            return 200, json.loads(json.dumps(body)), {}
+            return 200, _json.loads(_json.dumps(body)), {}
         return 404, {"message": "not found"}, {}
+
+    def _snapshot(self, body: dict):
+        q, v = body.get("query", ""), body.get("variables", {})
+        spaces, props = self.fixtures["_snapshot_spaces"], self.fixtures["_snapshot_proposals"]
+        if "spaces(" in q:
+            return 200, {"data": {"spaces": [spaces[i] for i in v.get("ids", []) if i in spaces]}}, {}
+        if "proposals(" in q:
+            items = [p for p in props.get(v.get("space"), []) if p["created"] > int(v.get("since", 0))]
+            return 200, {"data": {"proposals": items}}, {}
+        return 200, {"errors": [{"message": "unknown query"}]}, {}
 
 
 @pytest.fixture
@@ -156,5 +195,12 @@ def cfg(tmp_path, monkeypatch):
         "general": {"db_path": "t.db", "out_dir": "out", "defillama_min_interval": 0, "coingecko_min_interval": 0, "github_min_interval": 0},
         "universe": {"min_tvl_usd": 2_000_000, "exclude_categories": ["CEX"], "early_days": 60, "coingecko_details_limit": 10, "github_projects_limit": 10},
         "web": {"scheduler": False, "run_at": "06:00", "send_telegram": True},
+        "snapshot": {"enabled": True, "projects_limit": 50, "window_days": 90, "min_interval": 0},
+        "dune": {"enabled": True, "max_age_hours": 36, "execute_if_stale": False, "queries": [
+            {"id": 424242, "match_by": "slug", "match_column": "protocol",
+             "metrics": {"users_30d": "active_users_30d", "revenue_30d": "revenue_usd_30d", "txs_30d": "tx_count_30d", "whale_share": "whale_share"}},
+        ]},
     })
-    return Config(data=data, base_dir=tmp_path)
+    cfg = Config(data=data, base_dir=tmp_path)
+    cfg.secrets.dune_api_key = "dune-test-key"
+    return cfg

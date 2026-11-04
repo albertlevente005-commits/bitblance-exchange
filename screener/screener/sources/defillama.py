@@ -46,6 +46,9 @@ def fetch_protocols(http: Http) -> list[dict[str, Any]]:
         gh = p.get("github")
         if isinstance(gh, str):
             gh = [gh]
+        gov = p.get("governanceID")
+        if isinstance(gov, str):
+            gov = [gov]
         out.append(
             {
                 "slug": slug,
@@ -58,6 +61,7 @@ def fetch_protocols(http: Http) -> list[dict[str, Any]]:
                 "url": p.get("url"),
                 "twitter": p.get("twitter"),
                 "github": gh or [],
+                "governance": gov or [],
                 "listed_at": _ts_to_day(p.get("listedAt")) if p.get("listedAt") else None,
                 "audits": _parse_audits(p.get("audits")),
                 "audit_links": p.get("audit_links") or [],

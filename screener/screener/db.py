@@ -83,6 +83,16 @@ CREATE TABLE IF NOT EXISTS hacks (
     PRIMARY KEY (project_slug, day)
 );
 
+CREATE TABLE IF NOT EXISTS metrics (
+    project_id  INTEGER NOT NULL REFERENCES projects(id),
+    day         TEXT NOT NULL,
+    source      TEXT NOT NULL,   -- dune | snapshot | ...
+    metric      TEXT NOT NULL,
+    value       REAL,
+    text        TEXT,
+    PRIMARY KEY (project_id, day, source, metric)
+);
+
 CREATE TABLE IF NOT EXISTS scores (
     project_id   INTEGER NOT NULL REFERENCES projects(id),
     day          TEXT NOT NULL,
@@ -111,6 +121,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_day ON snapshots(day);
 CREATE INDEX IF NOT EXISTS idx_scores_day ON scores(day);
+CREATE INDEX IF NOT EXISTS idx_metrics_project ON metrics(project_id, metric, day);
 """
 
 
@@ -221,6 +232,36 @@ def upsert_dev_stats(conn: sqlite3.Connection, project_id: int, day: str, data: 
         ),
     )
     conn.execute("UPDATE projects SET dev_at=? WHERE id=?", (day, project_id))
+
+
+def upsert_metrics(conn: sqlite3.Connection, project_id: int, day: str, source: str, values: dict[str, Any]) -> None:
+    """Általános mutatók (Dune, Snapshot). Számot a value, szöveget a text oszlopba."""
+    rows = []
+    for metric, v in values.items():
+        if v is None:
+            continue
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            rows.append((project_id, day, source, metric, float(v), None))
+        else:
+            rows.append((project_id, day, source, metric, None, str(v)))
+    conn.executemany("INSERT OR REPLACE INTO metrics (project_id, day, source, metric, value, text) VALUES (?,?,?,?,?,?)", rows)
+
+
+def latest_metrics(conn: sqlite3.Connection, project_id: int, source: str, on: str | None = None, max_age_days: int = 14) -> dict[str, Any]:
+    """Forrásonként a legfrissebb érték mutatónként (legfeljebb max_age_days régi)."""
+    ref = date.fromisoformat(on) if on else date.today()
+    lo = (ref - timedelta(days=max_age_days)).isoformat()
+    rows = conn.execute(
+        """SELECT metric, value, text, day FROM metrics WHERE project_id=? AND source=? AND day BETWEEN ? AND ?
+           ORDER BY day ASC""",
+        (project_id, source, lo, ref.isoformat()),
+    ).fetchall()
+    out: dict[str, Any] = {}
+    for r in rows:  # növekvő nap szerint, a későbbi felülírja
+        out[r["metric"]] = r["value"] if r["value"] is not None else r["text"]
+    if rows:
+        out["_day"] = rows[-1]["day"]
+    return out
 
 
 def upsert_hack(conn: sqlite3.Connection, slug: str, day: str, amount: float | None, technique: str | None, source: str) -> None:

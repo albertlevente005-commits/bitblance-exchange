@@ -30,6 +30,7 @@ def test_fetch_and_score_end_to_end(cfg, transport):
     conn, clients, stats, scored = run(cfg, transport)
     assert stats["projects"] == 3 and stats["markets"] == 3 and stats["hacks"] == 1
     assert stats["details"] == 3 and stats["github"] == 2
+    assert stats["dune"] == 2 and stats["snapshot"] == 3
     assert scored == 3
 
     rows = {r["slug"]: r for r in ranking(conn, DAY)}
