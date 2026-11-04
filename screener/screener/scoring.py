@@ -26,6 +26,7 @@ class ProjectData:
     fees_change_30d: float | None = None
     revenue_30d: float | None = None
     users_24h: float | None = None
+    users_30d: float | None = None
     users_change_30d: float | None = None
     price_change_30d: float | None = None
     # tokenomika
@@ -44,6 +45,10 @@ class ProjectData:
     releases_90d: int | None = None
     last_push: str | None = None
     audits: int | None = None
+    # governance (Snapshot)
+    gov_proposals_90d: int | None = None
+    gov_avg_voters_90d: float | None = None
+    gov_last_proposal_days: int | None = None
     # likviditás
     volume_24h: float | None = None
     exchanges: int | None = None
@@ -142,7 +147,10 @@ def score_usage(p: ProjectData) -> tuple[float | None, float, dict]:
         ("fees_30d", log_scale(p.fees_30d, 10_000, 10_000_000), 20),
         ("fees_trend_30d", scale(p.fees_change_30d, -40, 60), 15),
         ("fee_yield_on_tvl", scale(fee_yield, 0.0, 0.2), 10),
-        ("users_24h", log_scale(p.users_24h, 100, 100_000), 10),
+        ("users_24h", log_scale(p.users_24h, 100, 100_000), 10)
+        if p.users_24h is not None or p.users_30d is None
+        else ("users_30d", log_scale(p.users_30d, 1_000, 1_000_000), 10),
+        ("revenue_30d", log_scale(p.revenue_30d, 10_000, 5_000_000), 5),
         ("fundamentals_vs_price", scale(divergence, -80, 40), 10),
     ]
     return weighted(parts)
@@ -197,6 +205,8 @@ def score_team(p: ProjectData) -> tuple[float | None, float, dict]:
         ("last_push_recency", scale(push_age, -120, -7) if push_age is not None else None, 20),
         ("releases_90d", scale(p.releases_90d, 0, 4), 10),
         ("audits", scale(audits, 0, 2), 15),
+        ("governance_proposals_90d", scale(p.gov_proposals_90d, 0, 6), 8),
+        ("governance_voters_avg", log_scale(p.gov_avg_voters_90d, 10, 2_000) if p.gov_avg_voters_90d is not None else None, 7),
     ]
     return weighted(parts)
 

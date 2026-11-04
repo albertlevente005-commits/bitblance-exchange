@@ -9,8 +9,8 @@ import requests
 
 log = logging.getLogger(__name__)
 
-# transport(url, params, headers) -> (status_code, json_body | None, headers)
-Transport = Callable[[str, dict | None, dict | None], tuple[int, Any, dict]]
+# transport(url, params, headers, method="GET", json=None) -> (status_code, json_body | None, headers)
+Transport = Callable[..., tuple[int, Any, dict]]
 
 
 class HttpError(Exception):
@@ -25,8 +25,8 @@ def _requests_transport(timeout: float) -> Transport:
     session = requests.Session()
     session.headers["User-Agent"] = "crypto-screener/0.1 (+https://github.com)"
 
-    def transport(url: str, params: dict | None, headers: dict | None):
-        resp = session.get(url, params=params, headers=headers, timeout=timeout)
+    def transport(url: str, params: dict | None, headers: dict | None, method: str = "GET", json: Any = None):
+        resp = session.request(method, url, params=params, headers=headers, json=json, timeout=timeout)
         try:
             body = resp.json()
         except ValueError:
@@ -67,13 +67,22 @@ class Http:
         self._last = time.monotonic()
 
     def get_json(self, url: str, params: dict | None = None, headers: dict | None = None) -> Any:
+        return self.request_json("GET", url, params, headers)
+
+    def post_json(self, url: str, json: Any, params: dict | None = None, headers: dict | None = None) -> Any:
+        return self.request_json("POST", url, params, headers, json=json)
+
+    def request_json(self, method: str, url: str, params: dict | None = None, headers: dict | None = None, json: Any = None) -> Any:
         merged = {**self.headers, **(headers or {})}
         last_err: Exception | None = None
         for attempt in range(self.retries + 1):
             self._throttle()
             self.calls += 1
             try:
-                status, body, resp_headers = self.transport(url, params, merged)
+                if method == "GET":
+                    status, body, resp_headers = self.transport(url, params, merged)
+                else:
+                    status, body, resp_headers = self.transport(url, params, merged, method=method, json=json)
             except requests.RequestException as exc:  # hálózati hiba
                 last_err = exc
                 log.warning("%s: hálózati hiba (%s), próba %d", self.name, exc, attempt + 1)
@@ -99,4 +108,11 @@ class Http:
             return self.get_json(url, params, headers)
         except (HttpError, requests.RequestException) as exc:
             log.warning("%s: kihagyva %s (%s)", self.name, url, exc)
+            return None
+
+    def try_post_json(self, url: str, json: Any, params: dict | None = None, headers: dict | None = None) -> Any | None:
+        try:
+            return self.post_json(url, json, params, headers)
+        except (HttpError, requests.RequestException) as exc:
+            log.warning("%s: kihagyva POST %s (%s)", self.name, url, exc)
             return None

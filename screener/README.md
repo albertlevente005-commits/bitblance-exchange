@@ -12,7 +12,7 @@ beépített webes dashboarddal, Dockerrel telepíthető.
 
 | Lépés | Mi történik |
 |---|---|
-| **Adatgyűjtés** | DefiLlama (TVL, díjbevétel, bevétel, aktív felhasználók, token-unlockok, hackek, pool-hozamok), CoinGecko (ár, forgalom, kapitalizáció, kínálat, tőzsdeszám, spread, repók), GitHub (commitok, aktív kontribútorok, release-ek, utolsó push). Minden napi pillanatkép SQLite-ba kerül, így a saját történet is gyűlik. |
+| **Adatgyűjtés** | DefiLlama (TVL, díjbevétel, bevétel, aktív felhasználók, token-unlockok, hackek, pool-hozamok), CoinGecko (ár, forgalom, kapitalizáció, kínálat, tőzsdeszám, spread, repók), GitHub (commitok, aktív kontribútorok, release-ek, utolsó push), Snapshot (governance-javaslatok, szavazók, követők), Dune (saját mentett lekérdezések: valós használat és bevétel). Minden napi pillanatkép SQLite-ba kerül, így a saját történet is gyűlik. |
 | **Pontozás** | 5 kategória, mindegyik 0–100: valós használat, tokenomika, csapat és fejlesztés, likviditás, piros zászlók. Súlyozott összpontszám 0–100. |
 | **Rangsor** | Napi rangsor pontszám szerint, kategória/zászló/keresés szűrővel. |
 | **Figyelőlista** | Friss (alapból 60 napon belül listázott) projektek, kritikus zászló nélkül. |
@@ -90,9 +90,9 @@ zászlót kap, hogy ne tűnjön magabiztosnak.
 
 | Kategória (súly) | Mutatók |
 |---|---|
-| **Valós használat** (30) | TVL-trend 30 nap és 7 nap, díjbevétel 30 nap (abszolút és trend), díj/TVL éves hozam, napi felhasználók, **fundamentum vs. ár** (ha az ár nő, de a díj és a TVL nem, büntet) |
+| **Valós használat** (30) | TVL-trend 30 nap és 7 nap, díjbevétel 30 nap (abszolút és trend), díj/TVL éves hozam, napi felhasználók (vagy Dune 30 napos aktív felhasználók), bevétel 30 nap (DefiLlama vagy Dune), **fundamentum vs. ár** (ha az ár nő, de a díj és a TVL nem, büntet) |
 | **Tokenomika** (20) | forgó/teljes kínálat aránya, következő unlock mérete a kapitalizációhoz képest és távolsága, éves inflációs ütem az unlock-ütemezésből, van-e kínálati plafon |
-| **Csapat és fejlesztés** (20) | commitok 90 nap, aktív kontribútorok 90 nap, utolsó push frissessége, release-ek, auditok száma |
+| **Csapat és fejlesztés** (20) | commitok 90 nap, aktív kontribútorok 90 nap, utolsó push frissessége, release-ek, auditok száma, governance-javaslatok 90 nap és átlagos szavazószám (Snapshot) |
 | **Likviditás** (15) | 24h forgalom / kapitalizáció, abszolút forgalom, kapitalizáció, tőzsdék száma, átlagos spread |
 | **Piros zászlók** (15) | 100 pontból levonás: nincs audit (−30), korábbi exploit (−25/−35 ha egy éven belül), nagy unlock 30 napon belül (−20), kevés forgó kínálat (−15), fejlesztés leállt (−20), extrém hozam >100% APY (−15/−25), gyanús forgalom (−10), TVL-zuhanás (−15), névtelen csapat (−20), koncentrált tulajdon (−20), mikro kapitalizáció (−10) |
 
@@ -118,14 +118,38 @@ notes = "saját megjegyzés"
 | DefiLlama | nem kell | `/protocols`, `/overview/fees`, `/activeUsers`, `/emissions`, `/hacks`, `/protocol/{slug}`, `yields.llama.fi/pools` |
 | CoinGecko | opcionális demo kulcs (`COINGECKO_API_KEY`) | Kulcs nélkül szigorú limit; a részletlekérések száma futásonként korlátozott (`coingecko_details_limit`), és projektenként csak 7 naponta frissül |
 | GitHub | opcionális token (`GITHUB_TOKEN`) | Token nélkül 60 kérés/óra, ezért alapból csak 30 projekt/futás |
+| Snapshot | nem kell | `hub.snapshot.org/graphql`. A space-t a DefiLlama `governanceID` mezőjéből, ennek híján tippekből (`slug.eth`, `slugdao.eth`, `gov.slug.eth` ...) oldjuk fel és cache-eljük; kézzel: `[overrides.slug] snapshot_space = "x.eth"`. Futásonként `projects_limit` projekt, 7 naponta frissül. |
+| Dune | `DUNE_API_KEY` (ingyenes csomag is van) | Nincs általános protokoll-végpont: a `config.toml` `[[dune.queries]]` blokkjaiban adsz meg mentett lekérdezéseket. Az eredmény lekérése olcsó, az újrafuttatás (`execute_if_stale`) kreditet fogyaszt. |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Bot: @BotFather; chat id: írj a botnak, majd `https://api.telegram.org/bot<TOKEN>/getUpdates` |
 
 A figyelt kör: DefiLlama-protokollok legalább `min_tvl_usd` TVL-lel (alapból 2M USD), a legnagyobb
 `top_n_by_tvl` (300), kizárva a `exclude_categories` kategóriákat, plusz a friss listázások
 kisebb küszöbbel, plusz az `always_include` lista.
 
-Még nincs bekötve (tervezett): Dune / Token Terminal, Snapshot governance-aktivitás, X / Telegram /
-Discord hangulat (ez a leggyengébb jel, csak kiegészítésnek), DeFiSafety.
+### Dune-lekérdezés bekötése
+
+Egy lekérdezés eredménytáblájának egy oszlopa azonosítja a projektet (`match_by`: `slug`, `symbol`,
+`gecko_id` vagy `name`, a DefiLlama-adatokhoz illesztve), a többi oszlopot mutatókra képezed:
+
+```toml
+[dune]
+enabled = true
+max_age_hours = 36
+execute_if_stale = false
+
+[[dune.queries]]
+id = 1234567
+match_by = "slug"
+match_column = "protocol"
+metrics = { users_30d = "active_users_30d", revenue_30d = "revenue_usd_30d", txs_30d = "tx_count_30d" }
+```
+
+A szabványos mutatónevek (`users_24h`, `users_30d`, `revenue_30d`, `fees_30d`, `txs_30d`,
+`volume_30d`, `holders`) beépülnek a pontozásba, ha a DefiLlama-nál hiányzik az adat; bármilyen más
+név csak a projekt oldalán jelenik meg. Több `[[dune.queries]]` blokk is megadható.
+
+Még nincs bekötve (tervezett): Token Terminal, X / Telegram / Discord hangulat (ez a leggyengébb
+jel, csak kiegészítésnek), DeFiSafety.
 
 ## OKX DCA bot összekötése
 
@@ -165,7 +189,7 @@ screener/
     config.py            config.toml + .env betöltés
     http.py              rate limit, újrapróbálás
     db.py                SQLite séma
-    sources/             defillama.py, coingecko.py, github.py
+    sources/             defillama.py, coingecko.py, github.py, snapshot.py, dune.py
     pipeline.py          lekérés -> DB -> pontozás
     scoring.py           pontozási modell
     alerts.py            riasztási szabályok
