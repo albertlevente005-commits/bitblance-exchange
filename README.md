@@ -38,6 +38,14 @@ Addresses are from the official Arc docs (docs.arc.io → Contract addresses).
 
 Mainnet is **read-only** for now: wallet connection, network switching and live balances work, but swaps, pools and bridging are disabled. To enable trading, deploy and audit ValtoDEX on mainnet, then set `NETWORKS.mainnet.dex` in `index.html` and lift the `READ_ONLY` guard.
 
+## Transaction safety
+
+- **Network check before every transaction** — the app refuses to send anything unless the wallet is on the selected Arc network (and on the destination chain when claiming a bridge transfer).
+- **Exact approvals only** — swaps, pool deposits and CCTP burns approve exactly the amount being spent, never an unlimited allowance.
+- **Slippage limit** — user-selectable max. slippage (0.1% / 0.5% / 1% / custom, hard-capped at 5%), applied as `minOut` to the on-chain swap.
+- **Pool price check** — if a pool quotes more than 2% worse than the reference rate (or a new pool's first deposit is priced more than 2% off), the user must confirm explicitly.
+- **Approval manager** — the Profile tab lists open approvals to ValtoDEX and CCTP, with one-click revoke.
+
 ## Run locally
 
 Open `index.html` in any modern browser. A wallet extension (MetaMask, Rabby) is needed for the connected features.
