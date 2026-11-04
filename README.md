@@ -46,6 +46,11 @@ Mainnet is **read-only** for now: wallet connection, network switching and live 
 - **Pool price check** — if a pool quotes more than 2% worse than the reference rate (or a new pool's first deposit is priced more than 2% off), the user must confirm explicitly.
 - **Approval manager** — the Profile tab lists open approvals to ValtoDEX and CCTP, with one-click revoke.
 
+## Smart contract
+
+The ValtoDEX AMM source, tests and deploy script are in [`contracts/`](contracts/README.md)
+(Foundry). It is interface-compatible with the front-end and **not yet audited**.
+
 ## Run locally
 
 Open `index.html` in any modern browser. A wallet extension (MetaMask, Rabby) is needed for the connected features.
