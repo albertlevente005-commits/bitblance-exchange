@@ -1,6 +1,6 @@
 # Eredménytábla — élő foci és jégkorong eredmények
 
-Eredmenyek.com / Flashscore-stílusú élő eredmény oldal. Egyetlen `index.html`, nincs build lépés és nincs külső függőség (a betűtípuson kívül). Nyisd meg a fájlt, vagy a GitHub Pages-en: `https://bitblance.exchange/eredmenyek/`.
+Eredmenyek.com / Flashscore-stílusú élő eredmény oldal valós adatokkal (TheSportsDB). Egyetlen `index.html`, nincs build lépés, nincs backend. Nyisd meg a fájlt, vagy a GitHub Pages-en: `https://bitblance.exchange/eredmenyek/`.
 
 ## Mi van benne
 
@@ -16,10 +16,22 @@ Eredmenyek.com / Flashscore-stílusú élő eredmény oldal. Egyetlen `index.htm
 
 ## Adatforrás
 
-A jelenlegi verzió **determinisztikus szezon-szimulációt** használ: minden bajnoksághoz valós csapatnevekkel (2025/26-os kiírások) körmérkőzéses menetrend készül, az eredmények és események (gólszerző, perc, lapok) a mérkőzés azonosítójából seedelt véletlenből származnak, és a valós órához képest „játszódnak le”. Ebből következnek a tabellák is, így minden nézet konzisztens.
+Az oldal **valós adatokat** a [TheSportsDB](https://www.thesportsdb.com/) nyilvános v1 API-jából tölt, közvetlenül a böngészőből (nincs backend, nincs API-kulcs: az ingyenes „3” tesztkulcsot használja). Lekért végpontok:
 
-Ez azt jelenti, hogy nincs API-kulcs és nincs hálózati kérés. Egy valós adatszolgáltató (pl. API-Football, SportMonks, TheSportsDB) bekötéséhez a `season()`, `result()` és `phase()` függvényeket kell adatforrásra cserélni; a renderelő réteg változatlanul használható.
+| Mire | Végpont | Frissítés |
+|---|---|---|
+| Liga-azonosítók feloldása név/ország alapján | `search_all_leagues.php?s=Soccer` / `?s=Ice_Hockey` | 24 óra (localStorage) |
+| Napi meccslista, állás, státusz | `eventsday.php?d=ÉÉÉÉ-HH-NN&s=…` (két UTC napot kér, helyi dátumra szűr) | ma: 60 mp, múlt: 6 óra, jövő: 30 perc |
+| Tabella | `lookuptable.php?l=ID&s=2026-2027` | 10 perc |
+| Liga oldal (eredmények / menetrend / H2H) | `eventsseason.php?id=ID&s=…`, tartalék: `eventspastleague` + `eventsnextleague` | 10 perc |
+| Mérkőzés események / statisztika / összeállítás | `lookuptimeline.php`, `lookupeventstats.php`, `lookuplineup.php` | élő: 60 mp, befejezett: 24 óra |
+
+A lekérések cache-elve vannak, hogy az ingyenes kulcs (kb. 30 kérés/perc) alatt maradjon a forgalom: a napi nézet percenként 2 kérés, a tabella 10 percenként 1.
+
+**Státuszok:** a szolgáltató státuszkódjai (`1H`, `HT`, `2H`, `ET`, `P`, `FT`, `AET`, `PEN`, hokinál `P1`–`P3`, `OT`, `PT`, valamint `PST`/`CANC`/`ABD`) magyar címkékre fordulnak. Ha a szolgáltató a kezdés után még nem ad élő státuszt, a percszám a kezdési időből **becsült** (`~31'`), és így is jelöli.
+
+**Tartalék:** amelyik bajnokságot a TheSportsDB nem fedi (pl. Erste Liga), vagy ha az API nem érhető el, az oldal automatikusan a determinisztikus szezon-szimulációra vált, és ezt egyértelműen jelzi („szim.” jelvény a liga neve mellett, illetve figyelmeztető sáv a lista tetején; a fejléc színes pöttye zöld = valós, piros = nem elérhető, sárga = kapcsolódás). A ⚙ beállításokban kézzel is átkapcsolható (`?data=sim` URL-paraméterrel is), és saját TheSportsDB (Patreon) kulcs adható meg: azzal több adat jön (eseménylista, statisztika, összeállítások).
 
 ## Demo óra
 
-Hogy napközben is lássál élő mérkőzést, a ⚙ beállításokban átállítható a nap virtuális időpontja (pl. 20:30), vagy URL paraméterrel: `index.html?t=20:30`. További paraméterek: `?sport=hoki`, `?d=2026-11-07`.
+A szimulált bajnokságokhoz a ⚙ beállításokban átállítható a nap virtuális időpontja (pl. 20:30), vagy URL paraméterrel: `index.html?t=20:30`. A valós adatokra ez nem hat (csak a becsült percszámra). További paraméterek: `?sport=hoki`, `?d=2026-11-07`, `?data=sim`.
