@@ -45,6 +45,7 @@ class ProjectData:
     releases_90d: int | None = None
     last_push: str | None = None
     audits: int | None = None
+    defisafety_score: float | None = None  # PQR 0-100 %, 70 felett PASS
     # governance (Snapshot)
     gov_proposals_90d: int | None = None
     gov_avg_voters_90d: float | None = None
@@ -206,6 +207,7 @@ def score_team(p: ProjectData) -> tuple[float | None, float, dict]:
         ("last_push_recency", scale(push_age, -120, -7) if push_age is not None else None, 20),
         ("releases_90d", scale(p.releases_90d, 0, 4), 10),
         ("audits", scale(audits, 0, 2), 15),
+        ("defisafety_pqr", scale(p.defisafety_score, 30, 95), 12),
         ("governance_proposals_90d", scale(p.gov_proposals_90d, 0, 6), 8),
         ("governance_voters_avg", log_scale(p.gov_avg_voters_90d, 10, 2_000) if p.gov_avg_voters_90d is not None else None, 7),
     ]
@@ -251,6 +253,8 @@ def red_flags(p: ProjectData, cfg: dict[str, Any]) -> tuple[float, list[str], di
         penalties["wash_trade_suspect"] = 10
     if p.tvl_change_7d is not None and p.tvl_change_7d <= -30:
         penalties["tvl_collapse"] = 15
+    if p.defisafety_score is not None and p.defisafety_score < cfg.get("defisafety_fail_below", 70.0):
+        penalties["defisafety_fail"] = 15 if p.defisafety_score >= 50 else 25
     if p.anonymous_team:
         penalties["anonymous_team"] = 20
     if p.concentrated_ownership:

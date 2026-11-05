@@ -36,6 +36,7 @@ DEFAULTS: dict[str, Any] = {
         "dev_stalled_days": 90,
         "extreme_apy": 100.0,
         "extreme_apy_min_pool_tvl": 100_000,
+        "defisafety_fail_below": 70.0,
     },
     "alerts": {
         "tvl_drop_7d_pct": -25.0,
@@ -54,6 +55,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "dune": {"enabled": False, "max_age_hours": 36, "execute_if_stale": False, "queries": []},
     "snapshot": {"enabled": True, "projects_limit": 80, "window_days": 90, "min_interval": 1.0},
+    "defisafety": {"enabled": True, "api_url": "https://api.defisafety.com/api/pqrs", "page_size": 100, "max_pages": 10, "html_fallback": True, "min_interval": 1.0, "ids": {}},
     "tokenterminal": {"enabled": False, "mode": "bulk", "window_days": 30, "projects_limit": 100, "min_interval": 0.5, "metrics": {}, "project_ids": {}},
     "overrides": {},
 }

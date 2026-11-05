@@ -10,7 +10,7 @@ from . import db
 from .config import Config
 from .http import Http
 from .scoring import ProjectData, score_project
-from .sources import coingecko, defillama, dune, github, snapshot, tokenterminal
+from .sources import coingecko, defillama, defisafety, dune, github, snapshot, tokenterminal
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class Clients:
         self.telegram = Http("telegram", min_interval=0.5, **kw)
         self.dune = Http("dune", min_interval=1.0, **kw)
         self.snapshot = Http("snapshot", min_interval=float((cfg.data.get("snapshot") or {}).get("min_interval", 1.0)), **kw)
+        self.defisafety = Http("defisafety", min_interval=float((cfg.data.get("defisafety") or {}).get("min_interval", 1.0)), **kw)
         self.tokenterminal = Http("tokenterminal", min_interval=float((cfg.data.get("tokenterminal") or {}).get("min_interval", 0.5)), **kw)
 
 
@@ -66,7 +67,7 @@ def fetch_all(conn: sqlite3.Connection, cfg: Config, clients: Clients, day: str 
     """Minden forrás lekérése és mentése a mai pillanatképbe."""
     day = day or db.today()
     u = cfg["universe"]
-    stats = {"projects": 0, "markets": 0, "details": 0, "github": 0, "hacks": 0, "dune": 0, "snapshot": 0, "tokenterminal": 0}
+    stats = {"projects": 0, "markets": 0, "details": 0, "github": 0, "hacks": 0, "dune": 0, "snapshot": 0, "tokenterminal": 0, "defisafety": 0}
 
     protocols = defillama.fetch_protocols(clients.llama)
     universe = select_universe(protocols, cfg)
@@ -188,7 +189,52 @@ def fetch_all(conn: sqlite3.Connection, cfg: Config, clients: Clients, day: str 
     stats["dune"] = fetch_dune(conn, cfg, clients, ids, day)
     stats["snapshot"] = fetch_snapshot(conn, cfg, clients, day)
     stats["tokenterminal"] = fetch_tokenterminal(conn, cfg, clients, ids, day)
+    stats["defisafety"] = fetch_defisafety(conn, cfg, clients, ids, day)
     return stats
+
+
+def fetch_defisafety(conn: sqlite3.Connection, cfg: Config, clients: Clients, ids: dict[int, dict], day: str) -> int:
+    """DeFiSafety PQR: lista-végpont -> név szerinti illesztés; ha nincs lista, riportoldalak a konfigurált id-k alapján."""
+    dcfg = cfg.data.get("defisafety") or {}
+    if not dcfg.get("enabled", True):
+        return 0
+    http = clients.defisafety
+    slug_to_pid = {p["slug"]: pid for pid, p in ids.items()}
+    id_map: dict[str, Any] = dict(dcfg.get("ids") or {})
+    for slug, ov in (cfg.data.get("overrides") or {}).items():
+        if isinstance(ov, dict) and ov.get("defisafety_id"):
+            id_map[slug] = ov["defisafety_id"]
+    matched: dict[str, dict[str, Any]] = {}
+
+    reviews = defisafety.fetch_reviews(http, str(dcfg.get("api_url") or defisafety.DEFAULT_API), int(dcfg.get("page_size", 100)), int(dcfg.get("max_pages", 10)))
+    if reviews:
+        matched = defisafety.match_reviews(reviews, ids.values())
+        by_id = {str(r["id"]): r for r in reviews if r.get("id") is not None}
+        for slug, rid in id_map.items():
+            if str(rid) in by_id:
+                matched[slug] = by_id[str(rid)]
+    if dcfg.get("html_fallback", True):
+        refresh_days = int(cfg["universe"].get("details_refresh_days", 7))
+        stale_cut = (date.fromisoformat(day) - timedelta(days=refresh_days)).isoformat()
+        for slug, rid in id_map.items():
+            if slug in matched or slug not in slug_to_pid:
+                continue
+            existing = db.latest_metrics(conn, slug_to_pid[slug], "defisafety", day, max_age_days=refresh_days)
+            if existing.get("_day", "") >= stale_cut:
+                continue
+            r = defisafety.fetch_report(http, rid)
+            if r:
+                matched[slug] = r
+    n = 0
+    for slug, r in matched.items():
+        pid = slug_to_pid.get(slug)
+        if pid is None:
+            continue
+        db.upsert_metrics(conn, pid, day, "defisafety", defisafety.as_metrics(r))
+        n += 1
+    conn.commit()
+    log.info("defisafety: %d projekthez van PQR", n)
+    return n
 
 
 def fetch_tokenterminal(conn: sqlite3.Connection, cfg: Config, clients: Clients, ids: dict[int, dict], day: str) -> int:
@@ -353,6 +399,8 @@ def build_project_data(conn: sqlite3.Connection, cfg: Config, project: sqlite3.R
     dune_m = db.latest_metrics(conn, project["id"], "dune", day, max_age_days=int((cfg.data.get("dune") or {}).get("max_age_hours", 36) / 24) + 7)
     gov = db.latest_metrics(conn, project["id"], "snapshot", day, max_age_days=30)
     tt = db.latest_metrics(conn, project["id"], "tokenterminal", day, max_age_days=7)
+    pqr = db.latest_metrics(conn, project["id"], "defisafety", day, max_age_days=120)
+    pqr_score = ov.get("defisafety_score") if ov.get("defisafety_score") is not None else pqr.get("pqr_score")
 
     def num(v: Any) -> float | None:
         return v if isinstance(v, (int, float)) else None
@@ -394,7 +442,8 @@ def build_project_data(conn: sqlite3.Connection, cfg: Config, project: sqlite3.R
         volume_24h=snap["volume_24h"], exchanges=extra.get("exchanges"), avg_spread_pct=extra.get("avg_spread_pct"),
         hacks=hacks, max_apy=snap["max_apy"],
         anonymous_team=ov.get("anonymous_team"), concentrated_ownership=ov.get("concentrated_ownership"),
-        audited_override=ov.get("audited"), today=date.fromisoformat(day),
+        audited_override=ov.get("audited"), defisafety_score=float(pqr_score) if isinstance(pqr_score, (int, float)) else None,
+        today=date.fromisoformat(day),
     )
 
 

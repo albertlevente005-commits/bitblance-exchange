@@ -123,3 +123,17 @@ min_interval = 0.5
 # Kézi projekt-illesztés: saját DefiLlama slug -> Token Terminal project_id
 [tokenterminal.project_ids]
 # "uniswap" = "uniswap"
+
+[defisafety]
+# DeFiSafety Process Quality Review (PQR) pontszám, 0-100%, 70 felett PASS. Nem kell kulcs.
+# Nincs dokumentált nyilvános JSON API: először a webapp lista-végpontját próbáljuk, ha az nem megy,
+# a riportoldalakat (defisafety.com/app/pqrs/{id}) értelmezzük az alábbi id-térkép alapján.
+enabled = true
+api_url = "https://api.defisafety.com/api/pqrs"
+page_size = 100
+max_pages = 10
+html_fallback = true
+min_interval = 1.0
+# Saját DefiLlama slug -> DeFiSafety riport id (a riport URL-jének vége). Kézi pontszám: [overrides.slug] defisafety_score = 85
+[defisafety.ids]
+# "aave-v3" = 320

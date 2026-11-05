@@ -127,7 +127,19 @@ def build_fixtures() -> dict[str, object]:
     # projektenkénti végpont: hosszú formátum
     tt_project_fresh = {"data": [dict(r, metric_id="fees") for r in tt_series("fresh", 10_000, 2.0)] + [dict(r, metric_id="active_users_daily") for r in tt_series("fresh", 1_500, 1.5)]}
 
+    ds_list = {"data": [
+        {"id": 415, "title": "Solid Finance V2", "score": 88, "status": "PASS", "date": "2026-06-10T00:00:00.000Z", "processVersion": "0.9", "chain": "Ethereum"},
+        {"id": 100, "title": "Solid Finance", "score": 71, "status": "PASS", "date": "2024-02-01T00:00:00.000Z", "processVersion": "0.8"},
+        {"id": 500, "title": "Rugged Yield (BSC)", "score": 0.42, "status": "FAIL", "date": "2026-03-03"},
+        {"id": 777, "title": "Totally Other", "score": 95, "date": "2026-01-01"},
+    ], "total": 4}
+    ds_report_html = """<html><head><title>Fresh Protocol - detailed report</title></head><body>
+      <h1>Fresh Protocol</h1><div>Process Quality Review (0.9)</div><div>Final score: 64% <span>FAIL</span></div>
+      <div>Date: 2026-08-15</div></body></html>"""
+
     fx = {
+        "_ds_list": ds_list,
+        "https://defisafety.com/app/pqrs/612": {"__text__": ds_report_html},
         "_tt_bulk": tt_bulk,
         "https://api.tokenterminal.com/v2/projects": tt_projects,
         "https://api.tokenterminal.com/v2/metrics": tt_metrics,
@@ -182,6 +194,11 @@ class FakeTransport:
             return 200, {"ok": True}, {}
         if url == "https://hub.snapshot.org/graphql":
             return self._snapshot(json or {})
+        if url == "https://api.defisafety.com/api/pqrs":
+            if self.fixtures.get("_ds_list") is None:
+                return 503, None, {}
+            page = int((params or {}).get("page", 1))
+            return 200, (_json.loads(_json.dumps(self.fixtures["_ds_list"])) if page == 1 else {"data": []}), {}
         if url.startswith("https://api.tokenterminal.com/"):
             if (headers or {}).get("Authorization") != "Bearer tt-test-key":
                 return 401, {"message": "unauthorized"}, {}
@@ -241,6 +258,7 @@ def cfg(tmp_path, monkeypatch):
              "metrics": {"users_30d": "active_users_30d", "revenue_30d": "revenue_usd_30d", "txs_30d": "tx_count_30d", "whale_share": "whale_share"}},
         ]},
     })
+    data["defisafety"] = {"enabled": True, "api_url": "https://api.defisafety.com/api/pqrs", "page_size": 100, "max_pages": 10, "html_fallback": True, "min_interval": 0, "ids": {"fresh-protocol": 612}}
     data["tokenterminal"] = {"enabled": True, "mode": "bulk", "window_days": 30, "projects_limit": 100, "min_interval": 0, "metrics": {}, "project_ids": {}}
     cfg = Config(data=data, base_dir=tmp_path)
     cfg.secrets.dune_api_key = "dune-test-key"
