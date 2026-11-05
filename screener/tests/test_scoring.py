@@ -29,7 +29,7 @@ def strong() -> ProjectData:
         price_change_30d=5, price=1, mcap=4e8, fdv=6e8, circ_supply=4e8, total_supply=6e8, max_supply=1e9,
         next_unlock_date="2026-12-20", next_unlock_amount=2e6, unlocks_per_day=100000, commits_90d=200,
         contributors_90d=12, releases_90d=3, last_push="2026-11-02T10:00:00Z", audits=3, volume_24h=3e7,
-        exchanges=12, avg_spread_pct=0.3, revenue_30d=2e6, users_change_30d=12, gov_proposals_90d=5, gov_avg_voters_90d=600, today=T,
+        exchanges=12, avg_spread_pct=0.3, revenue_30d=2e6, users_change_30d=12, defisafety_score=90, gov_proposals_90d=5, gov_avg_voters_90d=600, today=T,
     )
 
 

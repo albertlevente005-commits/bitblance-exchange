@@ -30,7 +30,7 @@ def _requests_transport(timeout: float) -> Transport:
         try:
             body = resp.json()
         except ValueError:
-            body = None
+            body = {"__text__": resp.text}
         return resp.status_code, body, dict(resp.headers)
 
     return transport
@@ -109,6 +109,13 @@ class Http:
         except (HttpError, requests.RequestException) as exc:
             log.warning("%s: kihagyva %s (%s)", self.name, url, exc)
             return None
+
+    def try_get_text(self, url: str, params: dict | None = None, headers: dict | None = None) -> str | None:
+        """Szöveges (HTML) válasz; JSON-válasz esetén annak nyers szövege helyett None."""
+        body = self.try_get_json(url, params, headers)
+        if isinstance(body, dict) and "__text__" in body:
+            return body["__text__"]
+        return None
 
     def try_post_json(self, url: str, json: Any, params: dict | None = None, headers: dict | None = None) -> Any | None:
         try:

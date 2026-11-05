@@ -12,7 +12,7 @@ beépített webes dashboarddal, Dockerrel telepíthető.
 
 | Lépés | Mi történik |
 |---|---|
-| **Adatgyűjtés** | DefiLlama (TVL, díjbevétel, bevétel, aktív felhasználók, token-unlockok, hackek, pool-hozamok), CoinGecko (ár, forgalom, kapitalizáció, kínálat, tőzsdeszám, spread, repók), GitHub (commitok, aktív kontribútorok, release-ek, utolsó push), Snapshot (governance-javaslatok, szavazók, követők), Token Terminal (szabványosított díj, bevétel, DAU/MAU, tranzakciók, holderek), Dune (saját mentett lekérdezések: valós használat és bevétel). Minden napi pillanatkép SQLite-ba kerül, így a saját történet is gyűlik. |
+| **Adatgyűjtés** | DefiLlama (TVL, díjbevétel, bevétel, aktív felhasználók, token-unlockok, hackek, pool-hozamok), CoinGecko (ár, forgalom, kapitalizáció, kínálat, tőzsdeszám, spread, repók), GitHub (commitok, aktív kontribútorok, release-ek, utolsó push), Snapshot (governance-javaslatok, szavazók, követők), Token Terminal (szabványosított díj, bevétel, DAU/MAU, tranzakciók, holderek), DeFiSafety (Process Quality Review pontszám), Dune (saját mentett lekérdezések: valós használat és bevétel). Minden napi pillanatkép SQLite-ba kerül, így a saját történet is gyűlik. |
 | **Pontozás** | 5 kategória, mindegyik 0–100: valós használat, tokenomika, csapat és fejlesztés, likviditás, piros zászlók. Súlyozott összpontszám 0–100. |
 | **Rangsor** | Napi rangsor pontszám szerint, kategória/zászló/keresés szűrővel. |
 | **Figyelőlista** | Friss (alapból 60 napon belül listázott) projektek, kritikus zászló nélkül. |
@@ -92,9 +92,9 @@ zászlót kap, hogy ne tűnjön magabiztosnak.
 |---|---|
 | **Valós használat** (30) | TVL-trend 30 nap és 7 nap, díjbevétel 30 nap (abszolút és trend), díj/TVL éves hozam, napi felhasználók (DefiLlama, Token Terminal DAU-átlag vagy Dune), felhasználói trend 30 nap, bevétel 30 nap (DefiLlama, Token Terminal vagy Dune), **fundamentum vs. ár** (ha az ár nő, de a díj és a TVL nem, büntet) |
 | **Tokenomika** (20) | forgó/teljes kínálat aránya, következő unlock mérete a kapitalizációhoz képest és távolsága, éves inflációs ütem az unlock-ütemezésből, van-e kínálati plafon |
-| **Csapat és fejlesztés** (20) | commitok 90 nap, aktív kontribútorok 90 nap, utolsó push frissessége, release-ek, auditok száma, governance-javaslatok 90 nap és átlagos szavazószám (Snapshot) |
+| **Csapat és fejlesztés** (20) | commitok 90 nap, aktív kontribútorok 90 nap, utolsó push frissessége, release-ek, auditok száma, DeFiSafety PQR-pontszám, governance-javaslatok 90 nap és átlagos szavazószám (Snapshot) |
 | **Likviditás** (15) | 24h forgalom / kapitalizáció, abszolút forgalom, kapitalizáció, tőzsdék száma, átlagos spread |
-| **Piros zászlók** (15) | 100 pontból levonás: nincs audit (−30), korábbi exploit (−25/−35 ha egy éven belül), nagy unlock 30 napon belül (−20), kevés forgó kínálat (−15), fejlesztés leállt (−20), extrém hozam >100% APY (−15/−25), gyanús forgalom (−10), TVL-zuhanás (−15), névtelen csapat (−20), koncentrált tulajdon (−20), mikro kapitalizáció (−10) |
+| **Piros zászlók** (15) | 100 pontból levonás: nincs audit (−30), korábbi exploit (−25/−35 ha egy éven belül), nagy unlock 30 napon belül (−20), kevés forgó kínálat (−15), fejlesztés leállt (−20), extrém hozam >100% APY (−15/−25), gyanús forgalom (−10), TVL-zuhanás (−15), DeFiSafety FAIL, azaz 70% alatti PQR (−15, 50% alatt −25), névtelen csapat (−20), koncentrált tulajdon (−20), mikro kapitalizáció (−10) |
 
 Ha a piros-zászló pontszám 30 alá esik, az összpontszám 45-ben van maximálva, bármilyen jók is a
 többi mutatók.
@@ -120,6 +120,7 @@ notes = "saját megjegyzés"
 | GitHub | opcionális token (`GITHUB_TOKEN`) | Token nélkül 60 kérés/óra, ezért alapból csak 30 projekt/futás |
 | Snapshot | nem kell | `hub.snapshot.org/graphql`. A space-t a DefiLlama `governanceID` mezőjéből, ennek híján tippekből (`slug.eth`, `slugdao.eth`, `gov.slug.eth` ...) oldjuk fel és cache-eljük; kézzel: `[overrides.slug] snapshot_space = "x.eth"`. Futásonként `projects_limit` projekt, 7 naponta frissül. |
 | Token Terminal | `TOKENTERMINAL_API_KEY` (fizetős csomag) | `api.tokenterminal.com/v2`, Bearer-auth. Projekt-illesztés CoinGecko-id, slug, név vagy egyedi szimbólum alapján (cache-elve; kézzel: `[tokenterminal.project_ids]` vagy `[overrides.slug] tokenterminal_id`). `bulk` mód: metrikánként egy hívás az összes projektre; `per_project` mód: projektenként egy hívás. A metrika-azonosítókat a `/v2/metrics` listával ellenőrzi, a hiányzókra figyelmeztet; `[tokenterminal.metrics]` alatt átnevezhetők vagy `false`-szal kikapcsolhatók. |
+| DeFiSafety | nem kell | Nincs dokumentált nyilvános JSON API. Először a webapp lista-végpontját próbálja (`api_url`), név szerint illeszt (verzió- és zárójel-független, a legfrissebb review számít). Ha a lista nem elérhető, a `[defisafety.ids]` slug → riport-id térkép alapján a riportoldalakat értelmezi (végső pontszám, PASS/FAIL, dátum, folyamatverzió). Kézi pontszám: `[overrides.slug] defisafety_score = 85`. |
 | Dune | `DUNE_API_KEY` (ingyenes csomag is van) | Nincs általános protokoll-végpont: a `config.toml` `[[dune.queries]]` blokkjaiban adsz meg mentett lekérdezéseket. Az eredmény lekérése olcsó, az újrafuttatás (`execute_if_stale`) kreditet fogyaszt. |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Bot: @BotFather; chat id: írj a botnak, majd `https://api.telegram.org/bot<TOKEN>/getUpdates` |
 
@@ -168,7 +169,7 @@ mutatóként épül a használat-pontszámba. A pontos metrika-azonosítók a cs
 első futás logja megmondja, melyik nem létezik, és hasonló neveket ajánl.
 
 Még nincs bekötve (tervezett): X / Telegram / Discord hangulat (ez a leggyengébb jel, csak
-kiegészítésnek), DeFiSafety.
+kiegészítésnek).
 
 ## OKX DCA bot összekötése
 
@@ -208,7 +209,7 @@ screener/
     config.py            config.toml + .env betöltés
     http.py              rate limit, újrapróbálás
     db.py                SQLite séma
-    sources/             defillama.py, coingecko.py, github.py, snapshot.py, dune.py, tokenterminal.py
+    sources/             defillama.py, coingecko.py, github.py, snapshot.py, dune.py, tokenterminal.py, defisafety.py
     pipeline.py          lekérés -> DB -> pontozás
     scoring.py           pontozási modell
     alerts.py            riasztási szabályok

@@ -30,6 +30,7 @@ def test_api_endpoints(cfg, transport):
         p = c.get("/api/projects/solid-finance").json()
         assert p["score"]["total"] > 70 and p["dev"]["commits_90d"] == 145 and len(p["snapshots"]) == 1
         assert p["governance"]["space"] == "solidgov.eth" and p["dune"]["users_30d"] == 180000
+        assert p["defisafety"]["pqr_score"] == 88
         assert c.get("/api/projects/nope").status_code == 404
         assert c.get("/api/watchlist", params={"min_score": 0}).json()["items"][0]["slug"] == "fresh-protocol"
         assert "candidates" in c.get("/api/dca-candidates").json()
